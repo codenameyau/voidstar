@@ -63,6 +63,7 @@ function loadState() {
     palette: fromHash ?? asPalette(stored.palette) ?? defaults.palette,
     mode: MODES.some((m) => m.id === stored.mode) ? stored.mode : defaults.mode,
     view: stored.view === "shake" || stored.view === "light" ? "light" : stored.view === "flowstar" ? "flowstar" : defaults.view,
+    varySpin: stored.varySpin === true,
     star: STARS.some((s) => s.id === stored.star) ? stored.star : defaults.star,
     settings: { ...defaults.settings, ...stored.settings },
     activeSlot: 0,
@@ -70,8 +71,8 @@ function loadState() {
 }
 
 function persist() {
-  const { palette, mode, view, star, settings } = state;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ palette, mode, view, star, settings }));
+  const { palette, mode, view, varySpin, star, settings } = state;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ palette, mode, view, varySpin, star, settings }));
   history.replaceState(null, "", `#p=${encodePalette(palette)}`);
 }
 
@@ -185,6 +186,29 @@ new ResizeObserver(resizeCanvas).observe(canvas);
 
 const TAU = 2 * Math.PI;
 const FLOWSTAR_SPIN_MS = 480;
+const SPIN_VERY_FAST_MS = 220;
+const SPIN_VERY_SLOW_MS = 3600;
+const SPIN_VARY_CYCLE_MS = 16000;
+let spinAngle = 0;
+let spinTime = 0;
+
+function spinPeriod(t) {
+  if (!state.varySpin) return FLOWSTAR_SPIN_MS;
+  const wave = (1 - Math.cos((t / SPIN_VARY_CYCLE_MS) * TAU)) / 2;
+  const fast = Math.log(SPIN_VERY_FAST_MS);
+  const slow = Math.log(SPIN_VERY_SLOW_MS);
+  return Math.exp(fast + (slow - fast) * wave);
+}
+
+function spinAt(t) {
+  if (!spinTime) spinTime = t;
+  const dt = t - spinTime;
+  if (dt > 0) {
+    spinTime = t;
+    spinAngle += (Math.min(50, dt) / spinPeriod(t)) * TAU;
+  }
+  return spinAngle;
+}
 // Tips sit this far from the image center, as a fraction of half the image.
 const STAR_TIP = 0.88;
 const STAR_VALLEY = 0.78;
@@ -203,7 +227,7 @@ function flowstarPose(t, w, h) {
   return {
     cx: w / 2,
     cy: h / 2,
-    spin: (t / FLOWSTAR_SPIN_MS) * TAU,
+    spin: spinAt(t),
     reach: h * 0.4,
   };
 }
@@ -338,6 +362,7 @@ const VIEWS = {
     radius: 0.034,
     soft: true,
     samples: 1,
+    lightsInFront: true,
     lights: flowstarLights,
     overlay: drawFlowstarBody,
   },
@@ -377,8 +402,16 @@ function drawFrame(now) {
   trailCtx.globalCompositeOperation = "source-over";
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, w, h);
-  ctx.drawImage(trail, 0, 0);
-  view.overlay?.(ctx, now, w, h, colorAt(timeline, now), radius);
+  const hex = colorAt(timeline, now);
+  if (view.lightsInFront) {
+    view.overlay?.(ctx, now, w, h, hex, radius);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.drawImage(trail, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+  } else {
+    ctx.drawImage(trail, 0, 0);
+    view.overlay?.(ctx, now, w, h, hex, radius);
+  }
   lastFrame = now;
   if (playing) requestAnimationFrame(drawFrame);
 }
@@ -387,6 +420,15 @@ function startPreview() {
   lastFrame = performance.now();
   if (playing) requestAnimationFrame(drawFrame);
   else drawFrame(lastFrame);
+}
+
+$("vary-speed").addEventListener("click", () => {
+  state.varySpin = !state.varySpin;
+  persist();
+  render();
+});
+function renderVarySpeed() {
+  $("vary-speed").setAttribute("aria-pressed", String(state.varySpin));
 }
 
 const previewWrap = document.querySelector(".preview-wrap");
@@ -426,9 +468,6 @@ const viewButtons = Object.entries(VIEWS).map(([id, { label }]) => {
 
 function renderViews() {
   viewButtons.forEach(([id, button]) => button.setAttribute("aria-pressed", String(id === state.view)));
-  $("preview-note").textContent = state.view === "flowstar"
-    ? "Shown in the dark: the print only shows where the lights land. Timings are approximate, and strobes flash."
-    : "Timings are approximate, and strobes flash.";
 }
 
 function renderStars() {
@@ -742,6 +781,7 @@ function render() {
   renderPalette();
   renderModes();
   renderViews();
+  renderVarySpeed();
   renderStars();
   renderSettings();
   renderSummary();

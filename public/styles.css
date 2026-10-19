@@ -19,7 +19,7 @@ h1, h2, h3, p { margin: 0; }
 
 .site-header {
   padding: 28px 24px 8px;
-  max-width: 1200px;
+  max-width: 1360px;
   margin: 0 auto;
 }
 .site-header h1 {
@@ -35,7 +35,7 @@ h1, h2, h3, p { margin: 0; }
   grid-template-areas: "pick preview" "program preview";
   gap: 16px;
   padding: 16px 24px 40px;
-  max-width: 1200px;
+  max-width: 1360px;
   margin: 0 auto;
 }
 .layout > :nth-child(1) { grid-area: pick; }
@@ -143,6 +143,7 @@ canvas {
   display: flex; gap: 8px; align-items: center;
 }
 .preview-controls button { padding: 4px 10px; font-size: 13px; background: #000a; }
+.preview-controls button[aria-pressed="true"] { border-color: var(--green); color: var(--green); }
 .preview-wrap:fullscreen,
 .preview-wrap:-webkit-full-screen {
   display: grid;
