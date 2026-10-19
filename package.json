@@ -1,0 +1,15 @@
+{
+  "name": "voidstar-programmer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plan, preview, and guide button-programming of a Trippy Squid Void LED microlight",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "plan": "node bin/plan.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

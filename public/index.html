@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voidstar Programmer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <h1>Voidstar Programmer</h1>
+  </header>
+
+  <main class="layout">
+    <section class="card" aria-labelledby="pick-title">
+      <h2 id="pick-title"><span class="step-num">1</span> Pick your colors</h2>
+      <div class="slots" id="slots" role="group" aria-label="Palette slot to edit"></div>
+      <p class="hint" id="slot-hint"></p>
+      <div class="chart" id="chart" aria-label="Color chart"></div>
+
+      <div>
+        <h3>Ideas</h3>
+        <div class="chips" id="presets"></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="preview-title">
+      <h2 id="preview-title"><span class="step-num">2</span> Preview</h2>
+      <div class="preview-wrap">
+        <canvas id="preview" width="640" height="640" aria-label="Animated preview of the selected mode"></canvas>
+        <div class="preview-controls">
+          <div class="views" id="views" role="group" aria-label="Preview style"></div>
+          <button type="button" id="fullscreen" aria-pressed="false">Full screen</button>
+        </div>
+      </div>
+      <div class="modes" id="modes" role="group" aria-label="Flash mode"></div>
+      <div class="stars" id="stars" role="group" aria-label="Preview star"></div>
+      <p class="note" id="preview-note"></p>
+    </section>
+
+    <section class="card card-primary" aria-labelledby="program-title">
+      <h2 id="program-title"><span class="step-num">3</span> Program the light</h2>
+      <p id="plan-summary" class="plan-summary"></p>
+      <button type="button" class="primary" id="start-coach">Start guided programming</button>
+
+      <details>
+        <summary>Calibration</summary>
+        <p class="hint">The manual doesn't say which color appears first or whether each color slot restarts at #1. If presses land on the wrong color, check these once with your light.</p>
+        <label class="field">
+          Color shown right after entering program mode
+          <select id="start-color"></select>
+        </label>
+        <fieldset class="field">
+          <legend>After saving a color, the next one starts from</legend>
+          <label><input type="radio" name="carry" value="reset" checked> Color #1 again</label>
+          <label><input type="radio" name="carry" value="carry"> The color just saved</label>
+        </fieldset>
+        <label class="field">
+          Press tempo: <output id="tempo-out"></output> presses per second
+          <input type="range" id="tempo" min="1" max="4" step="0.5">
+        </label>
+        <label class="toggle"><input type="checkbox" id="sound" checked> Beep on each cue</label>
+      </details>
+
+      <details>
+        <summary>Troubleshooting</summary>
+        <ul class="trouble">
+          <li><strong>Light went green and won't turn on:</strong> you held too long and it's in Lock Mode. Press the button 3 times quickly.</li>
+          <li><strong>Stuck in program mode:</strong> while on, press the Void case at the pin hole right of the button. The light turns off.</li>
+          <li><strong>Want the factory colors back:</strong> while off, hold 5 seconds and release on red.</li>
+          <li><strong>Brightness changed:</strong> holding past 1 second while saving cycles brightness. Release as soon as the save registers.</li>
+        </ul>
+      </details>
+    </section>
+  </main>
+
+  <dialog id="coach" aria-labelledby="coach-title">
+    <form method="dialog" class="coach-close"><button aria-label="Close">✕</button></form>
+    <div class="coach-progress">
+      <span id="coach-step"></span>
+      <div class="bar"><div id="coach-bar"></div></div>
+    </div>
+    <div class="coach-slots" id="coach-slots"></div>
+    <h2 id="coach-title" aria-live="polite"></h2>
+    <div class="coach-big" id="coach-big" aria-hidden="true"></div>
+    <p class="coach-detail" id="coach-detail"></p>
+    <div class="coach-expect" id="coach-expect"></div>
+
+    <div class="coach-fix" id="coach-fix" hidden>
+      <p>Which color is your light showing now?</p>
+      <div class="chart chart-small" id="fix-chart"></div>
+    </div>
+
+    <div class="coach-actions">
+      <button type="button" id="coach-back">Back</button>
+      <button type="button" id="coach-wrong" class="quiet">Wrong color?</button>
+      <button type="button" id="coach-cue"></button>
+      <button type="button" id="coach-next" class="primary">Next</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
