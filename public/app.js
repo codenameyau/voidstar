@@ -42,12 +42,16 @@ const LEGACY_STARS = {
 const $ = (id) => document.getElementById(id);
 const asPalette = (p) => (Array.isArray(p) ? decodePalette(p.join("-")) : null);
 const colorName = (id) => (id === BLANK ? "#1 Blank" : `#${id}`);
+const modeName = (id) => `${id} ${MODES.find((m) => m.id === id)?.name ?? ""}`.trim();
+const USER_ICON = "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0";
+const FLIP_ICON = "M4 8h13l-3-3M20 16H7l3 3";
 const isDark = (hex) => {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
   return 0.2126 * r + 0.7152 * g + 0.0722 * b < 110;
 };
 
 const LIGHT_COUNT = 8;
+const IDEA_NAME_MAX = 24;
 const state = loadState();
 
 function loadState() {
@@ -102,6 +106,7 @@ function loadState() {
     varySpin: stored.varySpin === true,
     ledsOn: stored.ledsOn !== false,
     programAll,
+    savedIdeas: readIdeas(stored.savedIdeas) ?? [],
     ...storedStar(stored, defaults),
     settings: { ...defaults.settings, ...stored.settings },
     activeSlot: 0,
@@ -112,6 +117,19 @@ function readProgram(saved) {
   const palette = asPalette(saved?.palette);
   const mode = MODES.some((m) => m.id === saved?.mode) ? saved.mode : null;
   return palette && mode ? { palette: [...palette], mode } : null;
+}
+
+function readIdea(saved) {
+  const name = typeof saved?.name === "string" ? saved.name.trim() : "";
+  const program = readProgram(saved);
+  if (!name || name.length > IDEA_NAME_MAX || !program) return null;
+  return { name, ...program };
+}
+
+function readIdeas(saved) {
+  if (!Array.isArray(saved)) return null;
+  const ideas = saved.map(readIdea);
+  return ideas.every(Boolean) ? ideas : null;
 }
 
 function storedStar(stored, defaults) {
@@ -131,8 +149,8 @@ function syncActiveProgram() {
 
 function persist() {
   syncActiveProgram();
-  const { lights, selectedLight, allProgram, palette, mode, varySpin, ledsOn, star, face, settings, programAll } = state;
-  const saved = { lights, selectedLight, palette, mode, varySpin, ledsOn, star, face, settings, programAll };
+  const { lights, selectedLight, allProgram, palette, mode, varySpin, ledsOn, star, face, settings, programAll, savedIdeas } = state;
+  const saved = { lights, selectedLight, palette, mode, varySpin, ledsOn, star, face, settings, programAll, savedIdeas };
   if (allProgram) saved.allProgram = { palette: [...allProgram.palette], mode: allProgram.mode };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
   history.replaceState(null, "", `#p=${encodePalette(palette)}`);
@@ -211,9 +229,30 @@ function renderPalette() {
 
   $("presets").replaceChildren(
     ...PRESETS.map(({ name, palette }) => {
-      const chip = el("button", { type: "button", className: "chip" }, [...paletteDots(palette), ` ${name}`]);
+      const chip = el("button", { type: "button", className: "chip" }, [
+        ...paletteDots(palette),
+        el("span", { className: "chip-name", textContent: name }),
+      ]);
       chip.addEventListener("click", () => {
         state.palette = palette;
+        paletteChanged();
+      });
+      return chip;
+    }),
+    ...state.savedIdeas.map(({ name, palette, mode }) => {
+      const chip = el("button", {
+        type: "button",
+        className: "chip",
+        ariaLabel: `${name}, your idea, ${modeName(mode)}`,
+        title: `${name} · ${modeName(mode)}`,
+      }, [
+        ...paletteDots(palette),
+        el("span", { className: "chip-name", textContent: name }),
+        strokeIcon(USER_ICON),
+      ]);
+      chip.addEventListener("click", () => {
+        state.palette = [...palette];
+        state.mode = mode;
         paletteChanged();
       });
       return chip;
@@ -730,34 +769,76 @@ document.addEventListener("fullscreenchange", renderFullscreen);
 document.addEventListener("webkitfullscreenchange", renderFullscreen);
 renderFullscreen();
 
+$("flip").addEventListener("click", () => {
+  state.face = state.face === "back" ? "front" : "back";
+  persist();
+  render();
+  if (!playing) drawFrame(lastFrame);
+});
+
 function renderStars() {
-  const root = $("stars");
-  root.replaceChildren();
-  for (const face of ["front", "back"]) {
-    const row = el("div", { className: "star-row" });
-    const side = face === "front" ? "Front" : "Back";
-    for (const star of STARS) {
-      const button = el("button", {
-        type: "button",
-        className: "star",
-        ariaLabel: `${star.name}, ${side}`,
-      });
-      button.setAttribute("aria-pressed", String(star.id === state.star && state.face === face));
-      button.append(
-        el("img", { src: star[face], alt: "" }),
-        el("span", { textContent: `${star.name} ${side}` }),
-      );
-      button.addEventListener("click", () => {
-        state.star = star.id;
-        state.face = face;
-        persist();
-        render();
-      });
-      row.append(button);
-    }
-    root.append(row);
+  const side = state.face === "back" ? "Back" : "Front";
+  const flip = $("flip");
+  flip.replaceChildren(strokeIcon(FLIP_ICON), "Flip");
+  flip.title = `Show the ${state.face === "back" ? "front" : "back"}`;
+  const row = el("div", { className: "star-row" });
+  for (const star of STARS) {
+    const button = el("button", {
+      type: "button",
+      className: "star",
+      ariaLabel: `${star.name}, ${side}`,
+    });
+    button.setAttribute("aria-pressed", String(star.id === state.star));
+    button.append(
+      el("img", { src: star[state.face === "back" ? "back" : "front"], alt: "" }),
+      el("span", { textContent: star.name }),
+    );
+    button.addEventListener("click", () => {
+      state.star = star.id;
+      persist();
+      render();
+      if (!playing) drawFrame(lastFrame);
+    });
+    row.append(button);
   }
+  $("stars").replaceChildren(row);
 }
+
+// ---------- Saved ideas ----------
+
+const ideaDialog = $("idea-dialog");
+
+$("save-idea").addEventListener("click", () => {
+  $("idea-name").value = "";
+  $("idea-colors").replaceChildren(
+    ...state.palette.map((id, slot) => el("figure", {}, [
+      swatch(id),
+      el("figcaption", { textContent: `Color ${slot + 1} · ${colorName(id)}` }),
+    ])),
+  );
+  $("idea-mode").replaceChildren(
+    "Mode: ",
+    el("span", { className: "n", textContent: String(state.mode) }),
+    ` ${MODES.find((m) => m.id === state.mode)?.name ?? ""}`,
+  );
+  ideaDialog.showModal();
+  $("idea-name").focus();
+});
+
+$("idea-cancel").addEventListener("click", () => ideaDialog.close());
+
+$("idea-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const idea = readIdea({ name: $("idea-name").value, palette: state.palette, mode: state.mode });
+  if (!idea) {
+    $("idea-name").reportValidity();
+    return;
+  }
+  state.savedIdeas = [...state.savedIdeas, idea];
+  persist();
+  render();
+  ideaDialog.close();
+});
 
 const modeButtons = MODES.map(({ id, name }) => {
   const button = el("button", { type: "button" }, [el("span", { className: "n", textContent: `${id}` }), name]);
@@ -1032,6 +1113,7 @@ function programSnapshot() {
     varySpin: state.varySpin,
     ledsOn: state.ledsOn,
     programAll: state.programAll,
+    savedIdeas: state.savedIdeas.map((idea) => ({ name: idea.name, palette: [...idea.palette], mode: idea.mode })),
     settings: { ...state.settings },
   };
 }
@@ -1060,7 +1142,10 @@ function parseProgram(data) {
   if (!settings || !Number.isInteger(startColor) || startColor < 1 || startColor > 34) return null;
   if (typeof settings.carryOver !== "boolean" || typeof settings.sound !== "boolean") return null;
   if (!Number.isFinite(tempo) || tempo <= 0 || tempo > 20) return null;
+  const savedIdeas = "savedIdeas" in data ? readIdeas(data.savedIdeas) : undefined;
+  if (savedIdeas === null) return null;
   return {
+    savedIdeas,
     lights,
     selectedLight: data.selectedLight,
     allProgram,
@@ -1092,6 +1177,7 @@ function applyProgram(program) {
   state.varySpin = program.varySpin;
   state.ledsOn = program.ledsOn;
   state.settings = { ...program.settings };
+  if (program.savedIdeas) state.savedIdeas = program.savedIdeas;
   persist();
   rebuildTimeline();
   render();

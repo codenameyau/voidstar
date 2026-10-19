@@ -27,7 +27,10 @@
       <div class="chart" id="chart" aria-label="Color chart"></div>
 
       <div>
-        <h3>Ideas</h3>
+        <div class="heading-row">
+          <h3>Ideas</h3>
+          <button type="button" id="save-idea">Save idea</button>
+        </div>
         <div class="chips" id="presets"></div>
       </div>
       <div>
@@ -35,7 +38,7 @@
         <div class="modes" id="modes" role="group" aria-label="Flash mode"></div>
       </div>
       <div class="light-pager">
-        <div class="light-heading">
+        <div class="heading-row">
           <h3>Light</h3>
           <div class="segment" role="group" aria-label="Program lights">
             <button type="button" id="program-all" aria-pressed="false">All</button>
@@ -53,6 +56,7 @@
         <div class="preview-controls">
           <button type="button" id="vary-speed" aria-pressed="false">Vary speed</button>
           <button type="button" id="leds" aria-pressed="true">LEDs</button>
+          <button type="button" id="flip">Flip</button>
           <button type="button" id="pause" aria-pressed="false">Pause</button>
           <button type="button" id="fullscreen" aria-pressed="false">Full screen</button>
         </div>
@@ -100,6 +104,23 @@
       <button type="button" id="coach-cue"></button>
       <button type="button" id="coach-next" class="primary">Next</button>
     </div>
+  </dialog>
+
+  <dialog id="idea-dialog" aria-labelledby="idea-title">
+    <form method="dialog" class="coach-close"><button aria-label="Close">✕</button></form>
+    <form id="idea-form" class="idea-form">
+      <h2 id="idea-title">Save idea</h2>
+      <label class="field">
+        Name
+        <input id="idea-name" type="text" maxlength="24" required pattern=".*\S.*" title="Give the idea a name." autocomplete="off" placeholder="My idea">
+      </label>
+      <div class="idea-colors" id="idea-colors"></div>
+      <p class="idea-mode" id="idea-mode"></p>
+      <div class="coach-actions">
+        <button type="button" id="idea-cancel">Cancel</button>
+        <button type="submit" class="primary">Save idea</button>
+      </div>
+    </form>
   </dialog>
 
   <script type="module" src="app.js"></script>
