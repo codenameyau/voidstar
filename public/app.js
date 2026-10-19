@@ -103,7 +103,7 @@ function loadState() {
     allProgram,
     palette: [...active.palette],
     mode: active.mode,
-    varySpin: stored.varySpin === true,
+    varySpin: stored.varySpin !== false,
     ledsOn: stored.ledsOn !== false,
     programAll,
     savedIdeas: readIdeas(stored.savedIdeas) ?? [],
@@ -227,12 +227,14 @@ function renderPalette() {
   const current = state.palette[state.activeSlot];
   chartButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(i + 1 === current)));
 
+  const samePalette = (palette) => palette.every((id, i) => id === state.palette[i]);
   $("presets").replaceChildren(
     ...PRESETS.map(({ name, palette }) => {
       const chip = el("button", { type: "button", className: "chip" }, [
         ...paletteDots(palette),
         el("span", { className: "chip-name", textContent: name }),
       ]);
+      chip.setAttribute("aria-pressed", String(samePalette(palette)));
       chip.addEventListener("click", () => {
         state.palette = palette;
         paletteChanged();
@@ -250,6 +252,7 @@ function renderPalette() {
         el("span", { className: "chip-name", textContent: name }),
         strokeIcon(USER_ICON),
       ]);
+      chip.setAttribute("aria-pressed", String(samePalette(palette) && mode === state.mode));
       chip.addEventListener("click", () => {
         state.palette = [...palette];
         state.mode = mode;
@@ -868,13 +871,10 @@ function renderSummary() {
   const selects = currentPlan().filter((s) => s.type === "select");
   const total = selects.reduce((n, s) => n + s.presses, 0);
   const seconds = total / state.settings.tempo + (LEAD_IN_BEATS * 3) / state.settings.tempo + 30;
-  const parts = selects.map((s) => `Color ${s.slot + 1} (${colorName(s.to)}): ${s.presses}`);
   const who = state.programAll ? "All 8 lights share this program" : `Light ${state.selectedLight + 1}`;
   $("plan-summary").replaceChildren(
     el("strong", { textContent: `${who}: ${total} presses total` }),
     `, about ${Math.max(1, Math.round(seconds / 60))} min with cues.`,
-    el("br"),
-    el("span", { className: "hint", textContent: parts.join(" · ") }),
   );
 }
 

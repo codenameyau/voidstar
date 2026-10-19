@@ -21,7 +21,7 @@
   </header>
 
   <main class="layout">
-    <section class="card" aria-labelledby="choose-title">
+    <section class="card area-pick" aria-labelledby="choose-title">
       <h2 id="choose-title"><span class="step-num">1</span> Choose your settings</h2>
       <div class="slots" id="slots" role="group" aria-label="Palette slot to edit"></div>
       <div class="chart" id="chart" aria-label="Color chart"></div>
@@ -49,12 +49,12 @@
       </div>
     </section>
 
-    <section class="card" aria-labelledby="preview-title">
+    <section class="card area-preview" aria-labelledby="preview-title">
       <h2 id="preview-title"><span class="step-num">2</span> Preview</h2>
       <div class="preview-wrap">
         <canvas id="preview" width="640" height="640" aria-label="Animated preview of the selected mode"></canvas>
         <div class="preview-controls">
-          <button type="button" id="vary-speed" aria-pressed="false">Vary speed</button>
+          <button type="button" id="vary-speed" aria-pressed="true">Vary speed</button>
           <button type="button" id="leds" aria-pressed="true">LEDs</button>
           <button type="button" id="flip">Flip</button>
           <button type="button" id="pause" aria-pressed="false">Pause</button>
@@ -64,20 +64,38 @@
       <div class="stars" id="stars" role="group" aria-label="Preview star"></div>
     </section>
 
-    <section class="card" aria-labelledby="program-title">
+    <section class="card area-program" aria-labelledby="program-title">
       <h2 id="program-title"><span class="step-num">3</span> Program the light</h2>
       <p id="plan-summary" class="plan-summary"></p>
       <button type="button" class="primary" id="start-coach">Start guided programming</button>
+    </section>
 
-      <details>
-        <summary>Troubleshooting</summary>
-        <ul class="trouble">
-          <li><strong>Light went green and won't turn on:</strong> you held too long and it's in Lock Mode. Press the button 3 times quickly.</li>
-          <li><strong>Stuck in program mode:</strong> while on, press the Void case at the pin hole right of the button. The light turns off.</li>
-          <li><strong>Want the factory colors back:</strong> while off, hold 5 seconds and release on red.</li>
-          <li><strong>Brightness changed:</strong> holding past 1 second while saving cycles brightness. Release as soon as the save registers.</li>
-        </ul>
-      </details>
+    <section class="card area-trouble" aria-labelledby="trouble-title">
+      <h2 id="trouble-title"><span class="step-num">4</span> Troubleshooting</h2>
+      <ul class="trouble">
+        <li><strong>Light went green and won't turn on:</strong> you held too long and it's in Lock Mode. Press the button 3 times quickly.</li>
+        <li><strong>Stuck in program mode:</strong> while on, press the Void case at the pin hole right of the button. The light turns off.</li>
+        <li><strong>Want the factory colors back:</strong> while off, hold 5 seconds and release on red.</li>
+        <li><strong>Brightness changed:</strong> holding past 1 second while saving cycles brightness. Release as soon as the save registers.</li>
+      </ul>
+    </section>
+
+    <section class="card area-guide" aria-labelledby="guide-title">
+      <h2 id="guide-title">Instructions</h2>
+      <div class="guide">
+        <figure>
+          <img src="instructions/how-to-program.png" alt="How to turn the Void light on, off, and program its three colors">
+        </figure>
+        <figure>
+          <img src="instructions/color-chart.png" alt="The 34 colors on the Void light, numbered 1 to 34">
+        </figure>
+        <figure>
+          <img src="instructions/flash-patterns.png" alt="The nine LED flash patterns, from fast strobe to two color flash">
+        </figure>
+        <figure>
+          <img src="instructions/additional-settings.png" alt="Lock mode, factory reset, and the pin-hole reset">
+        </figure>
+      </div>
     </section>
   </main>
 

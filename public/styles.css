@@ -62,17 +62,27 @@ h1, h2, h3, p { margin: 0; }
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-areas: "pick preview" "program preview";
+  grid-template-areas:
+    "pick preview"
+    "program preview"
+    "trouble trouble"
+    "guide guide";
   gap: 16px;
   padding: 16px 24px 40px;
   max-width: 1360px;
   margin: 0 auto;
 }
-.layout > :nth-child(1) { grid-area: pick; }
-.layout > :nth-child(2) { grid-area: preview; align-self: start; }
-.layout > :nth-child(3) { grid-area: program; }
+.area-pick { grid-area: pick; }
+.area-preview { grid-area: preview; align-self: start; }
+.area-program { grid-area: program; }
+.area-trouble { grid-area: trouble; }
+.area-guide { grid-area: guide; }
 @media (max-width: 860px) {
-  .layout { grid-template-columns: 1fr; grid-template-areas: "pick" "preview" "program"; }
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-areas: "pick" "preview" "program" "trouble" "guide";
+  }
+  .guide { grid-template-columns: 1fr; }
 }
 
 .card {
@@ -170,13 +180,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .segment button[aria-pressed="true"] { border-color: var(--green); color: var(--green); }
 .light-pages { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
 .light-pages[hidden] { display: none; }
-.light-pages button { padding: 8px 0; font-weight: 700; }
-.light-pages button[aria-pressed="true"] { border-color: var(--green); color: var(--green); }
+.light-pages button { padding: 8px 0; font-weight: 700; border-color: var(--green); color: var(--green); }
+.light-pages button:hover { border-color: var(--green); }
+.light-pages button[aria-pressed="true"],
+.light-pages button[aria-pressed="true"]:hover { border-color: var(--pink); color: var(--pink); }
 .chip {
   display: flex; align-items: center; gap: 4px;
   width: 100%;
   padding: 6px 8px; font-size: 13px;
 }
+.chip[aria-pressed="true"] { border-color: var(--green); color: var(--green); }
 .chip-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid #ffffff22; flex: none; }
 .chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip .icon { width: 14px; height: 14px; color: var(--muted); }
@@ -235,6 +248,9 @@ details[open] summary { margin-bottom: 10px; }
 .field label { display: flex; gap: 8px; align-items: center; }
 .trouble { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; line-height: 1.45; color: var(--muted); }
 .trouble strong { color: var(--text); }
+.guide { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.guide figure { margin: 0; display: grid; gap: 8px; }
+.guide img { width: 100%; height: auto; border-radius: 10px; background: #000; }
 
 dialog {
   width: min(600px, calc(100vw - 32px));
