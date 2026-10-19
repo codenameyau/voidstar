@@ -22,12 +22,42 @@ h1, h2, h3, p { margin: 0; }
   max-width: 1360px;
   margin: 0 auto;
 }
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.header-actions { display: flex; gap: 8px; flex: none; align-items: center; }
+.header-actions a,
+.header-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 14px;
+  text-decoration: none;
+}
+.header-actions a:hover { border-color: #444457; }
+.icon { width: 16px; height: 16px; flex: none; }
 .site-header h1 {
   font-size: 28px;
-  color: var(--pink);
   letter-spacing: 0.5px;
 }
+#logo {
+  color: var(--pink);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  letter-spacing: inherit;
+}
 .site-header p { color: var(--muted); margin-top: 6px; }
+#import-error[hidden] { display: none; }
 
 .layout {
   display: grid;
@@ -72,7 +102,7 @@ button, select {
   cursor: pointer;
 }
 button:hover { border-color: #444457; }
-button:focus-visible, select:focus-visible, input:focus-visible {
+button:focus-visible, select:focus-visible, input:focus-visible, .header-actions a:focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 2px;
 }
@@ -105,8 +135,12 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .swatch.blank, .chip-dot.blank {
   background:
-    linear-gradient(to top right, transparent calc(50% - 1px), #ff4d4d 50%, transparent calc(50% + 1px)),
+    linear-gradient(135deg,
+      transparent calc(50% - 1.5px),
+      #ff4d4d calc(50% - 1.5px) calc(50% + 1.5px),
+      transparent calc(50% + 1.5px)),
     #000;
+  border-color: #ff4d4d;
 }
 
 .chart {
@@ -120,12 +154,23 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   color: #000;
   border: 2px solid transparent;
 }
-.chart button.blank { color: #fff; }
+.chart button.blank { color: #fff; border-color: #ff4d4d; }
 .chart button[aria-pressed="true"] { border-color: #fff; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px #fff; }
+.chart button.blank[aria-pressed="true"] { border-color: #ff4d4d; }
 .chart-small { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); }
 .chart-small button { height: 32px; font-size: 12px; }
 
 .chips { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.light-pager { margin-top: auto; }
+.light-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.light-heading h3 { margin-bottom: 0; }
+.segment { display: flex; gap: 6px; }
+.segment button { padding: 4px 10px; font-size: 13px; }
+.segment button[aria-pressed="true"] { border-color: var(--green); color: var(--green); }
+.light-pages { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.light-pages[hidden] { display: none; }
+.light-pages button { padding: 8px 0; font-weight: 700; }
+.light-pages button[aria-pressed="true"] { border-color: var(--green); color: var(--green); }
 .chip {
   display: flex; align-items: center; gap: 4px;
   width: 100%;
@@ -142,7 +187,7 @@ canvas {
   position: absolute; right: 8px; bottom: 8px;
   display: flex; gap: 8px; align-items: center;
 }
-.preview-controls button { padding: 4px 10px; font-size: 13px; background: #000a; }
+.preview-controls button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 13px; background: #000a; }
 .preview-controls button[aria-pressed="true"] { border-color: var(--green); color: var(--green); }
 .preview-wrap:fullscreen,
 .preview-wrap:-webkit-full-screen {
@@ -164,11 +209,6 @@ canvas {
   right: 16px;
   bottom: 16px;
 }
-.views { display: inline-flex; }
-.views button { border-radius: 0; margin-left: -1px; }
-.views button:first-child { border-radius: 8px 0 0 8px; }
-.views button:last-child { border-radius: 0 8px 8px 0; }
-.views button[aria-pressed="true"] { border-color: var(--green); color: var(--green); position: relative; }
 .stars { display: grid; gap: 6px; }
 .star-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .star {
@@ -183,7 +223,6 @@ canvas {
 .modes button[aria-pressed="true"] { border-color: var(--green); color: var(--green); }
 .modes .n { color: var(--muted); margin-right: 4px; }
 
-.card-primary { border-color: #3a4a1a; }
 .plan-summary { line-height: 1.5; }
 details { border-top: 1px solid var(--line); padding-top: 10px; }
 summary { cursor: pointer; color: var(--muted); font-size: 14px; }

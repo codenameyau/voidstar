@@ -81,8 +81,8 @@ export function colorHex(id) {
   return COLORS[id - 1]?.hex ?? null;
 }
 
-// Durations are estimates read off the official flash-pattern chart, not
-// measured from the hardware.
+// Durations are measured from the flash-pattern chart, top to bottom.
+// One block is 156ms. Standard is the wider gap (156/115); Micro is the short gap (156/17).
 export const MODES = [
   { id: 1, name: "Fast Strobe" },
   { id: 2, name: "Standard Strobe" },
@@ -108,22 +108,22 @@ export function modeTimeline(modeId, palette, random = Math.random) {
   assertPalette(palette);
   const hex = palette.map(colorHex);
   switch (modeId) {
-    case 1: return strobe(palette, 6, 22);
-    case 2: return strobe(palette, 6, 60);
-    case 3: return strobe(palette, 2, 4);
-    case 4: return strobe(palette, 18, 0);
+    case 1: return strobe(palette, 156, 52);
+    case 2: return strobe(palette, 156, 115);
+    case 3: return strobe(palette, 156, 17);
+    case 4: return strobe(palette, 156, 0);
     case 5: return [
-      { slot: 0, hex: hex[0], ms: 15 },
-      { slot: 1, hex: hex[1], ms: 60 },
-      { slot: 2, hex: hex[2], ms: 15 },
+      { slot: 0, hex: hex[0], ms: 156 },
+      { slot: 1, hex: hex[1], ms: 459 },
+      { slot: 2, hex: hex[2], ms: 157 },
     ];
     case 6: return palette.map((_, slot) => ({
-      slot, hex: hex[slot], ms: 500, fadeTo: hex[(slot + 1) % 3],
+      slot, hex: hex[slot], ms: 250, fadeTo: hex[(slot + 1) % 3],
     }));
     case 7: {
       const frames = [];
       for (let burst = 0; burst < 8; burst++) {
-        const pattern = random() < 0.5 ? strobe(palette, 18, 0) : strobe(palette, 6, 60);
+        const pattern = random() < 0.5 ? strobe(palette, 156, 0) : strobe(palette, 157, 107);
         const repeats = 1 + Math.floor(random() * 3);
         for (let r = 0; r < repeats; r++) frames.push(...pattern);
       }
@@ -131,9 +131,9 @@ export function modeTimeline(modeId, palette, random = Math.random) {
     }
     case 8: return [{ slot: 1, hex: hex[1], ms: 1000 }];
     case 9: return [
-      { slot: 0, hex: hex[0], ms: 18 },
-      { slot: 1, hex: hex[1], ms: 18 },
-      { hex: null, ms: 30 },
+      { slot: 0, hex: hex[0], ms: 156 },
+      { slot: 1, hex: hex[1], ms: 156 },
+      { hex: null, ms: 51 },
     ];
     default: throw new Error(`Unknown mode ${modeId}`);
   }

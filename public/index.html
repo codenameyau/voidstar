@@ -8,19 +8,41 @@
 </head>
 <body>
   <header class="site-header">
-    <h1>Voidstar Programmer</h1>
+    <div class="title-row">
+      <h1><button type="button" id="logo">Voidstar Programmer</button></h1>
+      <div class="header-actions">
+        <a href="https://trippysquid.com/pages/led-flowstar" target="_blank" rel="noopener">Instructions</a>
+        <button type="button" id="export-program">Export</button>
+        <button type="button" id="import-program">Import</button>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+      </div>
+    </div>
+    <p class="hint" id="import-error" hidden></p>
   </header>
 
   <main class="layout">
-    <section class="card" aria-labelledby="pick-title">
-      <h2 id="pick-title"><span class="step-num">1</span> Pick your colors</h2>
+    <section class="card" aria-labelledby="choose-title">
+      <h2 id="choose-title"><span class="step-num">1</span> Choose your settings</h2>
       <div class="slots" id="slots" role="group" aria-label="Palette slot to edit"></div>
-      <p class="hint" id="slot-hint"></p>
       <div class="chart" id="chart" aria-label="Color chart"></div>
 
       <div>
         <h3>Ideas</h3>
         <div class="chips" id="presets"></div>
+      </div>
+      <div>
+        <h3>Modes</h3>
+        <div class="modes" id="modes" role="group" aria-label="Flash mode"></div>
+      </div>
+      <div class="light-pager">
+        <div class="light-heading">
+          <h3>Light</h3>
+          <div class="segment" role="group" aria-label="Program lights">
+            <button type="button" id="program-all" aria-pressed="false">All</button>
+            <button type="button" id="program-individual" aria-pressed="true">Individual</button>
+          </div>
+        </div>
+        <div class="light-pages" id="lights" role="group" aria-label="Light"></div>
       </div>
     </section>
 
@@ -29,38 +51,19 @@
       <div class="preview-wrap">
         <canvas id="preview" width="640" height="640" aria-label="Animated preview of the selected mode"></canvas>
         <div class="preview-controls">
-          <div class="views" id="views" role="group" aria-label="Preview style"></div>
           <button type="button" id="vary-speed" aria-pressed="false">Vary speed</button>
+          <button type="button" id="leds" aria-pressed="true">LEDs</button>
+          <button type="button" id="pause" aria-pressed="false">Pause</button>
           <button type="button" id="fullscreen" aria-pressed="false">Full screen</button>
         </div>
       </div>
-      <div class="modes" id="modes" role="group" aria-label="Flash mode"></div>
       <div class="stars" id="stars" role="group" aria-label="Preview star"></div>
     </section>
 
-    <section class="card card-primary" aria-labelledby="program-title">
+    <section class="card" aria-labelledby="program-title">
       <h2 id="program-title"><span class="step-num">3</span> Program the light</h2>
       <p id="plan-summary" class="plan-summary"></p>
       <button type="button" class="primary" id="start-coach">Start guided programming</button>
-
-      <details>
-        <summary>Calibration</summary>
-        <p class="hint">The manual doesn't say which color appears first or whether each color slot restarts at #1. If presses land on the wrong color, check these once with your light.</p>
-        <label class="field">
-          Color shown right after entering program mode
-          <select id="start-color"></select>
-        </label>
-        <fieldset class="field">
-          <legend>After saving a color, the next one starts from</legend>
-          <label><input type="radio" name="carry" value="reset" checked> Color #1 again</label>
-          <label><input type="radio" name="carry" value="carry"> The color just saved</label>
-        </fieldset>
-        <label class="field">
-          Press tempo: <output id="tempo-out"></output> presses per second
-          <input type="range" id="tempo" min="1" max="4" step="0.5">
-        </label>
-        <label class="toggle"><input type="checkbox" id="sound" checked> Beep on each cue</label>
-      </details>
 
       <details>
         <summary>Troubleshooting</summary>

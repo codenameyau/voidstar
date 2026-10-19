@@ -22,19 +22,22 @@ const PRESETS = [
   { name: "Sunset", palette: [29, 21, 18] },
   { name: "Neon", palette: [27, 13, 8] },
   { name: "Ice", palette: [25, 32, 34] },
-  { name: "Jungle", palette: [4, 27, 2] },
   { name: "Duo", palette: [22, 7, BLANK] },
-  { name: "Dusk Duo", palette: [29, 10, BLANK] },
 ];
 const LEAD_IN_BEATS = 2;
 const STARS = [
-  { id: "moon-vortex-8", name: "Moon Vortex", lights: 8, src: "stars/moon-vortex-8.png" },
-  { id: "sherbet-8", name: "Rainbow Sherbet", lights: 8, src: "stars/sherbet-8.png" },
-  { id: "mandela-8", name: "Mandela Dreams", lights: 8, src: "stars/mandela-8.png" },
-  { id: "moon-vortex-16", name: "Moon Vortex", lights: 16, src: "stars/moon-vortex-16.png" },
-  { id: "sherbet-16", name: "Rainbow Sherbet", lights: 16, src: "stars/sherbet-16.png" },
-  { id: "mandela-16", name: "Mandela Dreams", lights: 16, src: "stars/mandela-16.png" },
+  { id: "moon-vortex", name: "Moon Vortex", front: "stars/moon-vortex-8.png", back: "stars/moon-vortex-16.png" },
+  { id: "sherbet", name: "Rainbow Sherbet", front: "stars/sherbet-8.png", back: "stars/sherbet-16.png" },
+  { id: "mandela", name: "Mandela Dreams", front: "stars/mandela-8.png", back: "stars/mandela-16.png" },
 ];
+const LEGACY_STARS = {
+  "moon-vortex-8": ["moon-vortex", "front"],
+  "moon-vortex-16": ["moon-vortex", "back"],
+  "sherbet-8": ["sherbet", "front"],
+  "sherbet-16": ["sherbet", "back"],
+  "mandela-8": ["mandela", "front"],
+  "mandela-16": ["mandela", "back"],
+};
 
 const $ = (id) => document.getElementById(id);
 const asPalette = (p) => (Array.isArray(p) ? decodePalette(p.join("-")) : null);
@@ -44,14 +47,15 @@ const isDark = (hex) => {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b < 110;
 };
 
+const LIGHT_COUNT = 8;
 const state = loadState();
 
 function loadState() {
   const defaults = {
     palette: PRESETS[0].palette,
     mode: 1,
-    view: "flowstar",
-    star: "moon-vortex-8",
+    star: "moon-vortex",
+    face: "front",
     settings: { startColor: BLANK, carryOver: false, tempo: 2, sound: true },
   };
   let stored = {};
@@ -59,20 +63,78 @@ function loadState() {
     stored = JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? {};
   } catch {}
   const fromHash = decodePalette(new URLSearchParams(location.hash.slice(1)).get("p") ?? "");
+  const palette = asPalette(stored.palette) ?? defaults.palette;
+  const mode = MODES.some((m) => m.id === stored.mode) ? stored.mode : defaults.mode;
+  const storedLights = Array.isArray(stored.lights) ? stored.lights : [];
+  const lights = Array.from({ length: LIGHT_COUNT }, (_, i) => {
+    const saved = storedLights[i];
+    const savedPalette = asPalette(saved?.palette);
+    const savedMode = MODES.some((m) => m.id === saved?.mode) ? saved.mode : null;
+    return {
+      palette: savedPalette ? [...savedPalette] : [...palette],
+      mode: savedMode ?? mode,
+    };
+  });
+  const selectedLight = Number.isInteger(stored.selectedLight) && stored.selectedLight >= 0 && stored.selectedLight < LIGHT_COUNT
+    ? stored.selectedLight
+    : 0;
+  const programAll = stored.programAll === true;
+  let allProgram = readProgram(stored.allProgram);
+  if (fromHash) {
+    if (programAll) {
+      allProgram = {
+        palette: [...fromHash],
+        mode: allProgram?.mode ?? lights[selectedLight].mode,
+      };
+    } else {
+      lights[selectedLight].palette = [...fromHash];
+    }
+  } else if (programAll && !allProgram) {
+    allProgram = { palette: [...lights[selectedLight].palette], mode: lights[selectedLight].mode };
+  }
+  const active = programAll ? allProgram : lights[selectedLight];
   return {
-    palette: fromHash ?? asPalette(stored.palette) ?? defaults.palette,
-    mode: MODES.some((m) => m.id === stored.mode) ? stored.mode : defaults.mode,
-    view: stored.view === "shake" || stored.view === "light" ? "light" : stored.view === "flowstar" ? "flowstar" : defaults.view,
+    lights,
+    selectedLight,
+    allProgram,
+    palette: [...active.palette],
+    mode: active.mode,
     varySpin: stored.varySpin === true,
-    star: STARS.some((s) => s.id === stored.star) ? stored.star : defaults.star,
+    ledsOn: stored.ledsOn !== false,
+    programAll,
+    ...storedStar(stored, defaults),
     settings: { ...defaults.settings, ...stored.settings },
     activeSlot: 0,
   };
 }
 
+function readProgram(saved) {
+  const palette = asPalette(saved?.palette);
+  const mode = MODES.some((m) => m.id === saved?.mode) ? saved.mode : null;
+  return palette && mode ? { palette: [...palette], mode } : null;
+}
+
+function storedStar(stored, defaults) {
+  const legacy = LEGACY_STARS[stored.star];
+  const star = legacy?.[0] ?? (STARS.some((s) => s.id === stored.star) ? stored.star : defaults.star);
+  const face = stored.face === "back" || stored.face === "front"
+    ? stored.face
+    : legacy?.[1] ?? defaults.face;
+  return { star, face };
+}
+
+function syncActiveProgram() {
+  const program = { palette: [...state.palette], mode: state.mode };
+  if (state.programAll) state.allProgram = program;
+  else state.lights[state.selectedLight] = program;
+}
+
 function persist() {
-  const { palette, mode, view, varySpin, star, settings } = state;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ palette, mode, view, varySpin, star, settings }));
+  syncActiveProgram();
+  const { lights, selectedLight, allProgram, palette, mode, varySpin, ledsOn, star, face, settings, programAll } = state;
+  const saved = { lights, selectedLight, palette, mode, varySpin, ledsOn, star, face, settings, programAll };
+  if (allProgram) saved.allProgram = { palette: [...allProgram.palette], mode: allProgram.mode };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
   history.replaceState(null, "", `#p=${encodePalette(palette)}`);
 }
 
@@ -144,7 +206,6 @@ function renderPalette() {
       el("span", { className: "value", textContent: colorName(id) }),
     );
   });
-  $("slot-hint").textContent = `Choosing Color ${state.activeSlot + 1}. Color #1 is blank (LED off).`;
   const current = state.palette[state.activeSlot];
   chartButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(i + 1 === current)));
 
@@ -158,7 +219,47 @@ function renderPalette() {
       return chip;
     }),
   );
+  lightButtons.forEach((button, i) => button.setAttribute("aria-pressed", String(i === state.selectedLight)));
+}
 
+const lightButtons = Array.from({ length: LIGHT_COUNT }, (_, i) => {
+  const button = el("button", { type: "button", textContent: String(i + 1), ariaLabel: `Light ${i + 1}` });
+  button.addEventListener("click", () => {
+    if (state.programAll || i === state.selectedLight) return;
+    state.lights[state.selectedLight] = { palette: [...state.palette], mode: state.mode };
+    state.selectedLight = i;
+    state.palette = [...state.lights[i].palette];
+    state.mode = state.lights[i].mode;
+    persist();
+    rebuildTimeline();
+    render();
+  });
+  $("lights").append(button);
+  return button;
+});
+
+function setProgramAll(programAll) {
+  if (state.programAll === programAll) return;
+  syncActiveProgram();
+  state.programAll = programAll;
+  if (programAll && !state.allProgram) {
+    const source = state.lights[state.selectedLight];
+    state.allProgram = { palette: [...source.palette], mode: source.mode };
+  }
+  const active = programAll ? state.allProgram : state.lights[state.selectedLight];
+  state.palette = [...active.palette];
+  state.mode = active.mode;
+  persist();
+  rebuildTimeline();
+  render();
+}
+$("program-all").addEventListener("click", () => setProgramAll(true));
+$("program-individual").addEventListener("click", () => setProgramAll(false));
+
+function renderProgramScope() {
+  $("program-all").setAttribute("aria-pressed", String(state.programAll));
+  $("program-individual").setAttribute("aria-pressed", String(!state.programAll));
+  $("lights").hidden = state.programAll;
 }
 
 // ---------- Preview ----------
@@ -170,24 +271,36 @@ let timeline;
 let playing = !reducedMotion;
 let lastFrame = performance.now();
 
+let timelines = [];
+
 function rebuildTimeline() {
-  timeline = modeTimeline(state.mode, state.palette);
+  syncActiveProgram();
+  if (state.programAll) {
+    const shared = modeTimeline(state.allProgram.mode, state.allProgram.palette);
+    timelines = Array.from({ length: LIGHT_COUNT }, () => shared);
+    timeline = shared;
+    return;
+  }
+  timelines = state.lights.map((light) => modeTimeline(light.mode, light.palette));
+  timeline = timelines[state.selectedLight];
 }
 
-const trail = document.createElement("canvas");
-const trailCtx = trail.getContext("2d");
+function pocketHex(index, t) {
+  return colorAt(timelines[index] ?? timeline, t);
+}
 
 function resizeCanvas() {
   const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-  trail.width = canvas.width = Math.round(canvas.clientWidth * dpr);
-  trail.height = canvas.height = Math.round(canvas.clientHeight * dpr);
+  canvas.width = Math.round(canvas.clientWidth * dpr);
+  canvas.height = Math.round(canvas.clientHeight * dpr);
 }
 new ResizeObserver(resizeCanvas).observe(canvas);
 
 const TAU = 2 * Math.PI;
-const FLOWSTAR_SPIN_MS = 480;
-const SPIN_VERY_FAST_MS = 220;
-const SPIN_VERY_SLOW_MS = 3600;
+const FLOWSTAR_SPIN_MS = 640;
+// A hand-spun flowstar runs about 1 to 3.5 turns per second.
+const SPIN_VERY_FAST_MS = 300;
+const SPIN_VERY_SLOW_MS = 1000;
 const SPIN_VARY_CYCLE_MS = 16000;
 let spinAngle = 0;
 let spinTime = 0;
@@ -211,17 +324,19 @@ function spinAt(t) {
 }
 // Tips sit this far from the image center, as a fraction of half the image.
 const STAR_TIP = 0.88;
-const STAR_VALLEY = 0.78;
+// Opaque tip and inner notch, as a fraction of the drawn image half.
+const IMAGE_TIP = 0.905;
+const IMAGE_VALLEY = 0.7;
 
 function currentStar() {
   return STARS.find((s) => s.id === state.star) ?? STARS[0];
 }
 
-const starImages = new Map(STARS.map((star) => {
+const starImages = new Map(STARS.flatMap((star) => ["front", "back"].map((face) => {
   const img = new Image();
-  img.src = star.src;
-  return [star.id, img];
-}));
+  img.src = star[face];
+  return [`${star.id}:${face}`, img];
+})));
 
 function flowstarPose(t, w, h) {
   return {
@@ -232,15 +347,27 @@ function flowstarPose(t, w, h) {
   };
 }
 
-function flowstarLights(t, w, h) {
-  const { cx, cy, spin, reach } = flowstarPose(t, w, h);
-  const count = currentStar().lights;
-  return Array.from({ length: count }, (_, i) => {
-    const slot = count === 16 ? i / 2 : i;
-    const angle = spin - Math.PI / 2 + (slot / 8) * TAU;
-    const r = reach * (count === 16 && i % 2 ? STAR_VALLEY : 1);
-    return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
-  });
+function starPocket(cx, cy, angle, tipR, valleyR) {
+  const point = (r, a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  const tip = point(tipR, angle);
+  const left = point(valleyR, angle - Math.PI / 8);
+  const right = point(valleyR, angle + Math.PI / 8);
+  return {
+    tip,
+    left,
+    right,
+    mid: [(tip[0] + left[0] + right[0]) / 3, (tip[1] + left[1] + right[1]) / 3],
+  };
+}
+
+function pocketAngle(spin, index) {
+  return spin - Math.PI / 2 + (index / 8) * TAU;
+}
+
+function pocketLed(pocket) {
+  const [mx, my] = pocket.mid;
+  const [tx, ty] = pocket.tip;
+  return [mx + (tx - mx) * 0.4, my + (ty - my) * 0.4];
 }
 
 const FABRIC = 480;
@@ -252,130 +379,261 @@ const fabricCtx = fabric.getContext("2d");
 const lightCtx = lightMap.getContext("2d");
 const preparedStars = new Map();
 
-function preparedStar(id) {
-  const cached = preparedStars.get(id);
+function starKey() {
+  return `${currentStar().id}:${state.face === "back" ? "back" : "front"}`;
+}
+
+function preparedStar() {
+  const key = starKey();
+  const cached = preparedStars.get(key);
   if (cached) return cached;
-  const img = starImages.get(id);
+  const img = starImages.get(key);
   if (!img?.complete || !img.naturalWidth) return null;
+  const probe = document.createElement("canvas");
+  probe.width = probe.height = FABRIC;
+  const probeCtx = probe.getContext("2d", { willReadFrequently: true });
+  probeCtx.drawImage(img, 0, 0, FABRIC, FABRIC);
+  const pixels = probeCtx.getImageData(0, 0, FABRIC, FABRIC).data;
+  const fitted = document.createElement("canvas");
+  fitted.width = fitted.height = FABRIC;
+  const fittedCtx = fitted.getContext("2d", { willReadFrequently: true });
+  fittedCtx.setTransform(...trueStarTransform(pixels));
+  fittedCtx.drawImage(probe, 0, 0);
+  const [mx, my] = massCenter(fittedCtx.getImageData(0, 0, FABRIC, FABRIC).data);
   const copy = document.createElement("canvas");
   copy.width = copy.height = FABRIC;
-  copy.getContext("2d").drawImage(img, 0, 0, FABRIC, FABRIC);
-  preparedStars.set(id, copy);
+  copy.getContext("2d").drawImage(fitted, FABRIC / 2 - mx, FABRIC / 2 - my);
+  preparedStars.set(key, copy);
   return copy;
 }
 
-const glowCache = new Map();
-function glowSprite(hex, diameter, soft) {
-  const key = `${hex}:${diameter}:${soft ? 1 : 0}`;
-  const cached = glowCache.get(key);
-  if (cached) return cached;
-  if (glowCache.size > 24) glowCache.clear();
-  const sprite = document.createElement("canvas");
-  sprite.width = sprite.height = diameter;
-  const g = sprite.getContext("2d");
-  const mid = diameter / 2;
-  const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  const grad = g.createRadialGradient(mid, mid, 0, mid, mid, mid);
-  if (soft) {
-    grad.addColorStop(0, `rgba(${channels},0.9)`);
-    grad.addColorStop(0.05, `rgba(${channels},0.4)`);
-    grad.addColorStop(0.18, `rgba(${channels},0.14)`);
-    grad.addColorStop(0.4, `rgba(${channels},0.045)`);
-    grad.addColorStop(0.7, `rgba(${channels},0.012)`);
-    grad.addColorStop(1, `rgba(${channels},0)`);
-  } else {
-    grad.addColorStop(0, `rgba(${channels},1)`);
-    grad.addColorStop(0.22, `rgba(${channels},0.7)`);
-    grad.addColorStop(1, `rgba(${channels},0)`);
+// Spinning about the silhouette's center of mass keeps it from orbiting,
+// even where the photographed fabric is not perfectly regular.
+function massCenter(pixels) {
+  let sum = 0;
+  let sx = 0;
+  let sy = 0;
+  for (let y = 0; y < FABRIC; y++) {
+    for (let x = 0; x < FABRIC; x++) {
+      const a = pixels[(y * FABRIC + x) * 4 + 3];
+      sum += a;
+      sx += a * (x + 0.5);
+      sy += a * (y + 0.5);
+    }
   }
-  g.fillStyle = grad;
-  g.fillRect(0, 0, diameter, diameter);
-  glowCache.set(key, sprite);
-  return sprite;
+  return sum ? [sx / sum, sy / sum] : [FABRIC / 2, FABRIC / 2];
 }
 
-function quantize(hex) {
-  const step = (i) => Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) / 32) * 32);
-  return `#${[1, 3, 5].map((i) => step(i).toString(16).padStart(2, "0")).join("")}`;
+function opaqueAt(pixels, x, y) {
+  const px = Math.round(x);
+  const py = Math.round(y);
+  if (px < 0 || py < 0 || px >= FABRIC || py >= FABRIC) return false;
+  return pixels[(py * FABRIC + px) * 4 + 3] > 128;
 }
 
-function stamp(c, x, y, radius, hex, soft = false) {
-  const spread = soft ? 18 : 5;
-  const diameter = Math.max(8, Math.min(480, Math.round(radius * spread)));
-  const sprite = glowSprite(quantize(hex), diameter, soft);
-  c.drawImage(sprite, x - sprite.width / 2, y - sprite.height / 2);
+// Photos are slightly off-center and skewed, so the artwork orbits when spun.
+// Find the 8 tips and fit the affine map that puts them on a regular star
+// centered in the buffer; rotating that is a true spin about the star's center.
+function trueStarTransform(pixels) {
+  let minX = FABRIC;
+  let minY = FABRIC;
+  let maxX = 0;
+  let maxY = 0;
+  for (let y = 0; y < FABRIC; y += 2) {
+    for (let x = 0; x < FABRIC; x += 2) {
+      if (opaqueAt(pixels, x, y)) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+  const ox = (minX + maxX) / 2;
+  const oy = (minY + maxY) / 2;
+  const shift = [1, 0, 0, 1, FABRIC / 2 - ox, FABRIC / 2 - oy];
+  if (maxX <= minX) return shift;
+
+  const tips = [];
+  for (let i = 0; i < 8; i++) {
+    const center = pocketAngle(0, i);
+    let best = null;
+    for (let step = -40; step <= 40; step++) {
+      const a = center + (step / 40) * (Math.PI / 8);
+      let r = FABRIC / 2;
+      while (r > 0 && !opaqueAt(pixels, ox + r * Math.cos(a), oy + r * Math.sin(a))) r -= 0.5;
+      if (!best || r > best.r) best = { r, x: ox + r * Math.cos(a), y: oy + r * Math.sin(a) };
+    }
+    tips.push(best);
+  }
+  const radius = tips.reduce((sum, tip) => sum + Math.hypot(tip.x - ox, tip.y - oy), 0) / 8;
+  const targets = tips.map((_, i) => [
+    FABRIC / 2 + radius * Math.cos(pocketAngle(0, i)),
+    FABRIC / 2 + radius * Math.sin(pocketAngle(0, i)),
+  ]);
+  const rowX = solveAffineRow(tips, targets.map((t) => t[0]));
+  const rowY = solveAffineRow(tips, targets.map((t) => t[1]));
+  if (!rowX || !rowY) return shift;
+  return [rowX[0], rowY[0], rowX[1], rowY[1], rowX[2], rowY[2]];
 }
 
-function drawFlowstarBody(c, t, w, h, hex, radius) {
-  const print = preparedStar(currentStar().id);
+// Least squares for out = a*x + b*y + c over the tip points.
+function solveAffineRow(points, out) {
+  const m = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  const v = [0, 0, 0];
+  points.forEach(({ x, y }, i) => {
+    const row = [x, y, 1];
+    for (let r = 0; r < 3; r++) {
+      v[r] += row[r] * out[i];
+      for (let c = 0; c < 3; c++) m[r][c] += row[r] * row[c];
+    }
+  });
+  for (let col = 0; col < 3; col++) {
+    let pivot = col;
+    for (let r = col + 1; r < 3; r++) if (Math.abs(m[r][col]) > Math.abs(m[pivot][col])) pivot = r;
+    if (Math.abs(m[pivot][col]) < 1e-9) return null;
+    [m[col], m[pivot]] = [m[pivot], m[col]];
+    [v[col], v[pivot]] = [v[pivot], v[col]];
+    for (let r = 0; r < 3; r++) {
+      if (r === col) continue;
+      const f = m[r][col] / m[col][col];
+      for (let c = col; c < 3; c++) m[r][c] -= f * m[col][c];
+      v[r] -= f * v[col];
+    }
+  }
+  return v.map((value, i) => value / m[i][i]);
+}
+
+function rgb(hex) {
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+}
+
+// Light scattered through cloth from a point source: I(d) ~ 1 / (1 + (d/d0)^2),
+// windowed to reach zero at the gradient edge.
+function scatter(t, d0) {
+  return (1 / (1 + (t / d0) ** 2)) * (1 - t * t) ** 2;
+}
+
+const IRRADIANCE_STOPS = [0, 0.03, 0.08, 0.15, 0.25, 0.4, 0.6, 0.8, 1];
+
+// Light landing on the fabric. Additive so neighboring LEDs mix like real light.
+function irradiate(ctx, x, y, radius, hex, gain) {
+  const [r, g, b] = rgb(hex);
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  for (const t of IRRADIANCE_STOPS) {
+    const k = gain * scatter(t, 0.1);
+    grad.addColorStop(t, `rgb(${Math.min(255, r * k)},${Math.min(255, g * k)},${Math.min(255, b * k)})`);
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+}
+
+// Soft radial glow with alpha stops [t, alpha], tinted toward white near the core.
+function glow(ctx, x, y, radius, hex, stops, whiteCore = 0) {
+  const [r, g, b] = rgb(hex);
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  for (const [t, a] of stops) {
+    const w = whiteCore * Math.max(0, 1 - t / 0.12);
+    const mix = (c) => Math.round(c + (255 - c) * w);
+    grad.addColorStop(t, `rgba(${mix(r)},${mix(g)},${mix(b)},${a})`);
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+}
+
+// Light leaking out of the translucent pocket into the air behind the star.
+const HALO = [[0, 0.55], [0.12, 0.32], [0.3, 0.13], [0.55, 0.04], [0.8, 0.01], [1, 0]];
+// The pocket itself glowing as light transmits through it.
+const POCKET = [[0, 0.9], [0.08, 0.75], [0.25, 0.42], [0.5, 0.18], [0.8, 0.07], [1, 0.03]];
+// Glare in the eye or camera from the bright pocket, in front of the star.
+const GLARE = [[0, 0.5], [0.05, 0.3], [0.15, 0.12], [0.35, 0.04], [0.65, 0.01], [1, 0]];
+// The LED seen through the pocket cloth: a diffused hot spot, overexposed toward white.
+const CORE = [[0, 0.95], [0.2, 0.7], [0.5, 0.25], [1, 0]];
+
+function drawFlowstarBody(c, t, w, h) {
+  const print = preparedStar();
   if (!print) return;
   const { cx, cy, spin, reach } = flowstarPose(t, w, h);
-  const half = reach / STAR_TIP;
-  const lights = flowstarLights(t, w, h);
-  const scale = FABRIC / (half * 2);
-  const cos = Math.cos(spin);
-  const sin = Math.sin(spin);
+  const half = Math.round(reach / STAR_TIP);
+  const ledsOn = state.ledsOn;
+
+  const size = half * 2;
+  const drawFabric = () => {
+    c.save();
+    c.translate(cx, cy);
+    c.rotate(spin);
+    c.drawImage(fabric, -size / 2, -size / 2, size, size);
+    c.restore();
+  };
 
   fabricCtx.globalCompositeOperation = "source-over";
   fabricCtx.clearRect(0, 0, FABRIC, FABRIC);
   fabricCtx.drawImage(print, 0, 0);
-  lightCtx.globalCompositeOperation = "source-over";
-  lightCtx.fillStyle = "#0c0c12";
-  lightCtx.fillRect(0, 0, FABRIC, FABRIC);
-  if (hex) {
-    lightCtx.globalCompositeOperation = "lighter";
-    const pool = FABRIC * 0.2;
-    for (const [x, y] of lights) {
-      const dx = (x - cx) * scale;
-      const dy = (y - cy) * scale;
-      const lx = FABRIC / 2 + dx * cos + dy * sin;
-      const ly = FABRIC / 2 - dx * sin + dy * cos;
-      const grad = lightCtx.createRadialGradient(lx, ly, 0, lx, ly, pool);
-      grad.addColorStop(0, "#ffffff");
-      grad.addColorStop(0.12, hex);
-      grad.addColorStop(1, "#000000");
-      lightCtx.fillStyle = grad;
-      lightCtx.beginPath();
-      lightCtx.arc(lx, ly, pool, 0, TAU);
-      lightCtx.fill();
-    }
+  if (!ledsOn) {
+    drawFabric();
+    return;
   }
+
+  const lit = [];
+  for (let i = 0; i < 8; i++) {
+    const color = pocketHex(i, t);
+    if (color) lit.push([i, color]);
+  }
+
+  // The print only shows where light lands on it.
+  const origin = FABRIC / 2;
+  lightCtx.globalCompositeOperation = "source-over";
+  lightCtx.fillStyle = "#040406";
+  lightCtx.fillRect(0, 0, FABRIC, FABRIC);
+  lightCtx.globalCompositeOperation = "lighter";
+  for (const [i, color] of lit) {
+    const pocket = starPocket(origin, origin, pocketAngle(0, i), IMAGE_TIP * origin, IMAGE_VALLEY * origin);
+    const [x, y] = pocketLed(pocket);
+    irradiate(lightCtx, x, y, origin * 0.85, color, 1.7);
+  }
+  lightCtx.globalCompositeOperation = "source-over";
   fabricCtx.globalCompositeOperation = "multiply";
   fabricCtx.drawImage(lightMap, 0, 0);
   fabricCtx.globalCompositeOperation = "destination-in";
   fabricCtx.drawImage(print, 0, 0);
   fabricCtx.globalCompositeOperation = "source-over";
 
+  const tipR = IMAGE_TIP * half;
+  const valleyR = IMAGE_VALLEY * half;
+  const pockets = lit.map(([i, color]) => {
+    const pocket = starPocket(cx, cy, pocketAngle(spin, i), tipR, valleyR);
+    return { pocket, color, led: pocketLed(pocket) };
+  });
+
   c.save();
-  c.translate(cx, cy);
-  c.rotate(spin);
-  c.drawImage(fabric, -half, -half, half * 2, half * 2);
+  c.globalCompositeOperation = "lighter";
+  for (const { color, led: [x, y] } of pockets) glow(c, x, y, half * 0.62, color, HALO);
   c.restore();
-  if (!hex) return;
-  for (const [x, y] of lights) stamp(c, x, y, radius * 0.7, hex);
+
+  drawFabric();
+
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  for (const { pocket, color, led: [x, y] } of pockets) {
+    const span = Math.hypot(pocket.left[0] - x, pocket.left[1] - y);
+    c.save();
+    clipPocket(c, pocket);
+    glow(c, x, y, span, color, POCKET, 0.5);
+    c.restore();
+    glow(c, x, y, half * 0.5, color, GLARE);
+    glow(c, x, y, half * 0.09, color, CORE, 0.85);
+  }
+  c.restore();
 }
 
-const VIEWS = {
-  flowstar: {
-    label: "Flowstar",
-    fade: 0.11,
-    radius: 0.034,
-    soft: true,
-    samples: 1,
-    lightsInFront: true,
-    lights: flowstarLights,
-    overlay: drawFlowstarBody,
-  },
-  light: {
-    label: "Light",
-    fade: 0.07,
-    radius: 0.05,
-    soft: true,
-    lights: (t, w, h) => [[w / 2 + w * 0.4 * Math.sin((t / 900) * TAU), h / 2 + h * 0.22 * Math.sin((t / 450) * TAU)]],
-  },
-};
-
-const MAX_TRAIL_STEPS = 6;
+function clipPocket(ctx, pocket) {
+  ctx.beginPath();
+  ctx.moveTo(pocket.tip[0], pocket.tip[1]);
+  ctx.lineTo(pocket.left[0], pocket.left[1]);
+  ctx.lineTo(pocket.right[0], pocket.right[1]);
+  ctx.closePath();
+  ctx.clip();
+}
 
 function drawFrame(now) {
   const { width: w, height: h } = canvas;
@@ -384,34 +642,9 @@ function drawFrame(now) {
     if (playing) requestAnimationFrame(drawFrame);
     return;
   }
-  const view = VIEWS[state.view];
-  const radius = Math.max(3, h * view.radius);
-  const dt = Math.min(40, now - lastFrame);
-  const steps = Math.max(1, Math.min(view.samples ?? MAX_TRAIL_STEPS, Math.ceil(dt / 8)));
-  const step = dt / steps;
-  trailCtx.globalCompositeOperation = "source-over";
-  trailCtx.fillStyle = `rgba(0,0,0,${view.fade})`;
-  trailCtx.fillRect(0, 0, w, h);
-  if (view.soft) trailCtx.globalCompositeOperation = "lighter";
-  for (let i = 1; i <= steps; i++) {
-    const t = lastFrame + i * step;
-    const hex = colorAt(timeline, t);
-    if (!hex) continue;
-    for (const [x, y] of view.lights(t, w, h)) stamp(trailCtx, x, y, radius, hex, view.soft);
-  }
-  trailCtx.globalCompositeOperation = "source-over";
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, w, h);
-  const hex = colorAt(timeline, now);
-  if (view.lightsInFront) {
-    view.overlay?.(ctx, now, w, h, hex, radius);
-    ctx.globalCompositeOperation = "lighter";
-    ctx.drawImage(trail, 0, 0);
-    ctx.globalCompositeOperation = "source-over";
-  } else {
-    ctx.drawImage(trail, 0, 0);
-    view.overlay?.(ctx, now, w, h, hex, radius);
-  }
+  drawFlowstarBody(ctx, now, w, h);
   lastFrame = now;
   if (playing) requestAnimationFrame(drawFrame);
 }
@@ -422,6 +655,37 @@ function startPreview() {
   else drawFrame(lastFrame);
 }
 
+function strokeIcon(d) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", d);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "currentColor");
+  path.setAttribute("stroke-width", "2");
+  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("stroke-linejoin", "round");
+  svg.append(path);
+  return svg;
+}
+
+function renderPause() {
+  const button = $("pause");
+  const label = playing ? "Pause" : "Play";
+  const icon = playing ? "M9 4v16M15 4v16" : "M8 5v14l11-7z";
+  button.replaceChildren(strokeIcon(icon), label);
+  button.setAttribute("aria-pressed", String(!playing));
+}
+$("pause").addEventListener("click", () => {
+  playing = !playing;
+  renderPause();
+  if (playing) startPreview();
+});
+renderPause();
+$("logo").addEventListener("click", () => location.reload());
+
 $("vary-speed").addEventListener("click", () => {
   state.varySpin = !state.varySpin;
   persist();
@@ -429,6 +693,15 @@ $("vary-speed").addEventListener("click", () => {
 });
 function renderVarySpeed() {
   $("vary-speed").setAttribute("aria-pressed", String(state.varySpin));
+}
+$("leds").addEventListener("click", () => {
+  state.ledsOn = !state.ledsOn;
+  persist();
+  render();
+  if (!playing) drawFrame(lastFrame);
+});
+function renderLeds() {
+  $("leds").setAttribute("aria-pressed", String(state.ledsOn));
 }
 
 const previewWrap = document.querySelector(".preview-wrap");
@@ -438,7 +711,8 @@ function fullscreenTarget() {
 function renderFullscreen() {
   const on = fullscreenTarget() === previewWrap;
   const button = $("fullscreen");
-  button.textContent = on ? "Exit full screen" : "Full screen";
+  const icon = on ? "M3 9h6V3M15 3v6h6M9 21v-6H3M21 15h-6v6" : "M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5";
+  button.replaceChildren(strokeIcon(icon), on ? "Exit full screen" : "Full screen");
   button.setAttribute("aria-pressed", String(on));
   requestAnimationFrame(resizeCanvas);
 }
@@ -454,38 +728,28 @@ $("fullscreen").addEventListener("click", () => {
 });
 document.addEventListener("fullscreenchange", renderFullscreen);
 document.addEventListener("webkitfullscreenchange", renderFullscreen);
-
-const viewButtons = Object.entries(VIEWS).map(([id, { label }]) => {
-  const button = el("button", { type: "button", textContent: label });
-  button.addEventListener("click", () => {
-    state.view = id;
-    persist();
-    render();
-  });
-  $("views").append(button);
-  return [id, button];
-});
-
-function renderViews() {
-  viewButtons.forEach(([id, button]) => button.setAttribute("aria-pressed", String(id === state.view)));
-}
+renderFullscreen();
 
 function renderStars() {
   const root = $("stars");
   root.replaceChildren();
-  for (const count of [8, 16]) {
+  for (const face of ["front", "back"]) {
     const row = el("div", { className: "star-row" });
-    for (const star of STARS.filter((s) => s.lights === count)) {
+    const side = face === "front" ? "Front" : "Back";
+    for (const star of STARS) {
       const button = el("button", {
         type: "button",
         className: "star",
-        ariaLabel: `${star.name}, ${count} lights`,
+        ariaLabel: `${star.name}, ${side}`,
       });
-      button.setAttribute("aria-pressed", String(star.id === state.star));
-      button.append(el("img", { src: star.src, alt: "" }), el("span", { textContent: star.name }));
+      button.setAttribute("aria-pressed", String(star.id === state.star && state.face === face));
+      button.append(
+        el("img", { src: star[face], alt: "" }),
+        el("span", { textContent: `${star.name} ${side}` }),
+      );
       button.addEventListener("click", () => {
         state.star = star.id;
-        state.view = "flowstar";
+        state.face = face;
         persist();
         render();
       });
@@ -524,37 +788,14 @@ function renderSummary() {
   const total = selects.reduce((n, s) => n + s.presses, 0);
   const seconds = total / state.settings.tempo + (LEAD_IN_BEATS * 3) / state.settings.tempo + 30;
   const parts = selects.map((s) => `Color ${s.slot + 1} (${colorName(s.to)}): ${s.presses}`);
+  const who = state.programAll ? "All 8 lights share this program" : `Light ${state.selectedLight + 1}`;
   $("plan-summary").replaceChildren(
-    el("strong", { textContent: `${total} presses total` }),
+    el("strong", { textContent: `${who}: ${total} presses total` }),
     `, about ${Math.max(1, Math.round(seconds / 60))} min with cues.`,
     el("br"),
     el("span", { className: "hint", textContent: parts.join(" · ") }),
   );
 }
-
-const startSelect = $("start-color");
-COLORS.forEach(({ id }) => startSelect.append(el("option", { value: String(id), textContent: colorName(id) })));
-
-function renderSettings() {
-  const { startColor, carryOver, tempo, sound } = state.settings;
-  startSelect.value = String(startColor);
-  document.querySelector(`input[name="carry"][value="${carryOver ? "carry" : "reset"}"]`).checked = true;
-  $("tempo").value = String(tempo);
-  $("tempo-out").textContent = String(tempo);
-  $("sound").checked = sound;
-}
-
-function updateSettings(patch) {
-  state.settings = { ...state.settings, ...patch };
-  persist();
-  render();
-}
-startSelect.addEventListener("change", () => updateSettings({ startColor: Number(startSelect.value) }));
-document.querySelectorAll('input[name="carry"]').forEach((input) =>
-  input.addEventListener("change", () => updateSettings({ carryOver: input.value === "carry" })),
-);
-$("tempo").addEventListener("input", (e) => updateSettings({ tempo: Number(e.target.value) }));
-$("sound").addEventListener("change", (e) => updateSettings({ sound: e.target.checked }));
 
 // ---------- Audio cues ----------
 
@@ -660,7 +901,9 @@ function replanFrom(index) {
 const COACH_VIEWS = {
   prep: () => ({
     title: "Start with the light off",
-    detail: "If it's on, hold the button for 1 second until it turns off.",
+    detail: state.programAll
+      ? "All 8 lights share this program. If one is on, hold its button for 1 second until it turns off."
+      : "If it's on, hold the button for 1 second until it turns off.",
     next: "Light is off",
   }),
   enter: (step) => ({
@@ -775,16 +1018,121 @@ dialog.addEventListener("close", () => {
 });
 $("start-coach").addEventListener("click", openCoach);
 
+function programSnapshot() {
+  syncActiveProgram();
+  const allProgram = state.allProgram
+    ? { palette: [...state.allProgram.palette], mode: state.allProgram.mode }
+    : { palette: [...state.lights[state.selectedLight].palette], mode: state.lights[state.selectedLight].mode };
+  return {
+    lights: state.lights.map((light) => ({ palette: [...light.palette], mode: light.mode })),
+    selectedLight: state.selectedLight,
+    allProgram,
+    star: state.star,
+    face: state.face,
+    varySpin: state.varySpin,
+    ledsOn: state.ledsOn,
+    programAll: state.programAll,
+    settings: { ...state.settings },
+  };
+}
+
+function parseProgram(data) {
+  if (!data || typeof data !== "object" || !Array.isArray(data.lights) || data.lights.length !== LIGHT_COUNT) return null;
+  const lights = data.lights.map((light) => {
+    const palette = asPalette(light?.palette);
+    const mode = MODES.some((m) => m.id === light?.mode) ? light.mode : null;
+    return palette && mode ? { palette, mode } : null;
+  });
+  if (lights.some((light) => !light)) return null;
+  if (!Number.isInteger(data.selectedLight) || data.selectedLight < 0 || data.selectedLight >= LIGHT_COUNT) return null;
+  if (!STARS.some((star) => star.id === data.star)) return null;
+  if (data.face !== "front" && data.face !== "back") return null;
+  if (typeof data.varySpin !== "boolean" || typeof data.ledsOn !== "boolean") return null;
+  if ("programAll" in data && typeof data.programAll !== "boolean") return null;
+  let allProgram = readProgram(data.allProgram);
+  if (!allProgram) {
+    if (data.allProgram != null) return null;
+    allProgram = { palette: [...lights[data.selectedLight].palette], mode: lights[data.selectedLight].mode };
+  }
+  const settings = data.settings;
+  const startColor = Number(settings?.startColor);
+  const tempo = Number(settings?.tempo);
+  if (!settings || !Number.isInteger(startColor) || startColor < 1 || startColor > 34) return null;
+  if (typeof settings.carryOver !== "boolean" || typeof settings.sound !== "boolean") return null;
+  if (!Number.isFinite(tempo) || tempo <= 0 || tempo > 20) return null;
+  return {
+    lights,
+    selectedLight: data.selectedLight,
+    allProgram,
+    star: data.star,
+    face: data.face,
+    varySpin: data.varySpin,
+    ledsOn: data.ledsOn,
+    programAll: data.programAll === true,
+    settings: { startColor, carryOver: settings.carryOver, tempo, sound: settings.sound },
+  };
+}
+
+function showImportError(message) {
+  const node = $("import-error");
+  node.hidden = !message;
+  node.textContent = message;
+}
+
+function applyProgram(program) {
+  state.lights = program.lights.map((light) => ({ palette: [...light.palette], mode: light.mode }));
+  state.selectedLight = program.selectedLight;
+  state.allProgram = { palette: [...program.allProgram.palette], mode: program.allProgram.mode };
+  state.programAll = program.programAll;
+  const active = state.programAll ? state.allProgram : state.lights[state.selectedLight];
+  state.palette = [...active.palette];
+  state.mode = active.mode;
+  state.star = program.star;
+  state.face = program.face;
+  state.varySpin = program.varySpin;
+  state.ledsOn = program.ledsOn;
+  state.settings = { ...program.settings };
+  persist();
+  rebuildTimeline();
+  render();
+  if (!playing) drawFrame(lastFrame);
+}
+
+$("export-program").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(programSnapshot(), null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = el("a", { href: url, download: "voidstar-lights.json" });
+  link.click();
+  URL.revokeObjectURL(url);
+});
+$("import-program").addEventListener("click", () => $("import-file").click());
+$("import-file").addEventListener("change", async () => {
+  const file = $("import-file").files?.[0];
+  $("import-file").value = "";
+  if (!file) return;
+  try {
+    const program = parseProgram(JSON.parse(await file.text()));
+    if (!program) {
+      showImportError("That file isn't a saved light program.");
+      return;
+    }
+    applyProgram(program);
+    showImportError("");
+  } catch {
+    showImportError("That file isn't a saved light program.");
+  }
+});
+
 // ---------- Boot ----------
 
 function render() {
   renderPalette();
   renderModes();
-  renderViews();
   renderVarySpeed();
+  renderLeds();
   renderStars();
-  renderSettings();
   renderSummary();
+  renderProgramScope();
 }
 
 rebuildTimeline();
