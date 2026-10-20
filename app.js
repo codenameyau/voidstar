@@ -56,7 +56,7 @@ const state = loadState();
 function loadState() {
   const defaults = {
     palette: PRESETS[0].palette,
-    mode: 1,
+    mode: MODES.find((m) => m.name === "Smooth Cycle").id,
     star: "moon-vortex",
     face: "front",
     settings: { startColor: BLANK, carryOver: false, tempo: 2, sound: true, handsFree: true },
@@ -81,7 +81,7 @@ function loadState() {
   const selectedLight = Number.isInteger(stored.selectedLight) && stored.selectedLight >= 0 && stored.selectedLight < LIGHT_COUNT
     ? stored.selectedLight
     : 0;
-  const programAll = stored.programAll === true;
+  const programAll = stored.programAll !== false;
   let allProgram = readProgram(stored.allProgram);
   if (fromHash) {
     if (programAll) {
@@ -102,7 +102,7 @@ function loadState() {
     allProgram,
     palette: [...active.palette],
     mode: active.mode,
-    varySpin: stored.varySpin !== false,
+    varySpin: stored.varySpin === true,
     ledsOn: stored.ledsOn !== false,
     programAll,
     savedIdeas: readIdeas(stored.savedIdeas) ?? [],
@@ -203,7 +203,6 @@ function buildChart(container, onPick) {
 
 const chartButtons = buildChart($("chart"), (id) => {
   state.palette = state.palette.with(state.activeSlot, id);
-  if (state.activeSlot < 2) state.activeSlot += 1;
   paletteChanged();
 });
 
