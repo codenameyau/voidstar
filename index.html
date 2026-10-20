@@ -41,8 +41,12 @@
         <div class="heading-row">
           <h3>Light</h3>
           <div class="segment" role="group" aria-label="Program lights">
-            <button type="button" id="program-all" aria-pressed="true">All</button>
+            <label class="apply-all" id="apply-all-label" hidden>
+              <input type="checkbox" id="apply-all">
+              Apply all
+            </label>
             <button type="button" id="program-individual" aria-pressed="false">Individual</button>
+            <button type="button" id="program-all" aria-pressed="true">All</button>
           </div>
         </div>
         <div class="light-pages" id="lights" role="group" aria-label="Light"></div>

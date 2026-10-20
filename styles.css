@@ -173,9 +173,12 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .heading-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .heading-row h3 { margin-bottom: 0; }
 .heading-row > button { padding: 4px 10px; font-size: 13px; }
-.segment { display: flex; gap: 6px; }
+.segment { display: flex; gap: 6px; align-items: center; }
 .segment button { padding: 4px 10px; font-size: 13px; }
 .segment button[aria-pressed="true"] { border-color: var(--green); color: var(--green); }
+.apply-all { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.apply-all[hidden] { display: none; }
+.apply-all input { accent-color: var(--green); }
 .light-pages { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
 .light-pages[hidden] { display: none; }
 .light-pages button { padding: 8px 0; font-weight: 700; border-color: var(--green); color: var(--green); }

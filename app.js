@@ -105,6 +105,7 @@ function loadState() {
     varySpin: stored.varySpin === true,
     ledsOn: stored.ledsOn !== false,
     programAll,
+    applyAll: stored.applyAll === true,
     savedIdeas: readIdeas(stored.savedIdeas) ?? [],
     ...storedStar(stored, defaults),
     settings: { ...defaults.settings, ...stored.settings },
@@ -148,8 +149,8 @@ function syncActiveProgram() {
 
 function persist() {
   syncActiveProgram();
-  const { lights, selectedLight, allProgram, palette, mode, varySpin, ledsOn, star, face, settings, programAll, savedIdeas } = state;
-  const saved = { lights, selectedLight, palette, mode, varySpin, ledsOn, star, face, settings, programAll, savedIdeas };
+  const { lights, selectedLight, allProgram, palette, mode, varySpin, ledsOn, star, face, settings, programAll, applyAll, savedIdeas } = state;
+  const saved = { lights, selectedLight, palette, mode, varySpin, ledsOn, star, face, settings, programAll, applyAll, savedIdeas };
   if (allProgram) saved.allProgram = { palette: [...allProgram.palette], mode: allProgram.mode };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
   history.replaceState(null, "", `#p=${encodePalette(palette)}`);
@@ -203,10 +204,20 @@ function buildChart(container, onPick) {
 
 const chartButtons = buildChart($("chart"), (id) => {
   state.palette = state.palette.with(state.activeSlot, id);
-  paletteChanged();
+  paletteChanged({ slot: state.activeSlot });
 });
 
-function paletteChanged() {
+function mirrorProgram({ palette = false, mode = false, slot = null } = {}) {
+  if (state.programAll || !state.applyAll) return;
+  for (const light of state.lights) {
+    if (slot != null) light.palette[slot] = state.palette[slot];
+    else if (palette) light.palette = [...state.palette];
+    if (mode) light.mode = state.mode;
+  }
+}
+
+function paletteChanged(fields) {
+  mirrorProgram(fields);
   persist();
   rebuildTimeline();
   render();
@@ -235,7 +246,7 @@ function renderPalette() {
       chip.setAttribute("aria-pressed", String(samePalette(palette)));
       chip.addEventListener("click", () => {
         state.palette = palette;
-        paletteChanged();
+        paletteChanged({ palette: true });
       });
       return chip;
     }),
@@ -254,7 +265,7 @@ function renderPalette() {
       chip.addEventListener("click", () => {
         state.palette = [...palette];
         state.mode = mode;
-        paletteChanged();
+        paletteChanged({ palette: true, mode: true });
       });
       return chip;
     }),
@@ -302,7 +313,13 @@ function renderProgramScope() {
   $("program-all").setAttribute("aria-pressed", String(state.programAll));
   $("program-individual").setAttribute("aria-pressed", String(!state.programAll));
   $("lights").hidden = state.programAll;
+  $("apply-all").checked = state.applyAll;
+  $("apply-all-label").hidden = state.programAll;
 }
+$("apply-all").addEventListener("change", () => {
+  state.applyAll = $("apply-all").checked;
+  persist();
+});
 
 // ---------- Preview ----------
 
@@ -847,6 +864,7 @@ const modeButtons = MODES.map(({ id, name }) => {
   const button = el("button", { type: "button" }, [el("span", { className: "n", textContent: `${id}` }), name]);
   button.addEventListener("click", () => {
     state.mode = id;
+    mirrorProgram({ mode: true });
     persist();
     rebuildTimeline();
     render();
@@ -1185,6 +1203,7 @@ function programSnapshot() {
     varySpin: state.varySpin,
     ledsOn: state.ledsOn,
     programAll: state.programAll,
+    applyAll: state.applyAll,
     savedIdeas: state.savedIdeas.map((idea) => ({ name: idea.name, palette: [...idea.palette], mode: idea.mode })),
     settings: { ...state.settings },
   };
@@ -1203,6 +1222,7 @@ function parseProgram(data) {
   if (data.face !== "front" && data.face !== "back") return null;
   if (typeof data.varySpin !== "boolean" || typeof data.ledsOn !== "boolean") return null;
   if ("programAll" in data && typeof data.programAll !== "boolean") return null;
+  if ("applyAll" in data && typeof data.applyAll !== "boolean") return null;
   let allProgram = readProgram(data.allProgram);
   if (!allProgram) {
     if (data.allProgram != null) return null;
@@ -1226,6 +1246,7 @@ function parseProgram(data) {
     varySpin: data.varySpin,
     ledsOn: data.ledsOn,
     programAll: data.programAll === true,
+    applyAll: data.applyAll === true,
     settings: {
       startColor,
       carryOver: settings.carryOver,
@@ -1247,6 +1268,7 @@ function applyProgram(program) {
   state.selectedLight = program.selectedLight;
   state.allProgram = { palette: [...program.allProgram.palette], mode: program.allProgram.mode };
   state.programAll = program.programAll;
+  state.applyAll = program.applyAll;
   const active = state.programAll ? state.allProgram : state.lights[state.selectedLight];
   state.palette = [...active.palette];
   state.mode = active.mode;
