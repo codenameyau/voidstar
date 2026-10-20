@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { COLOR_COUNT, BLANK, decodePalette, planProgramming } from "../public/lib/void.js";
+import { COLOR_COUNT, BLANK, decodePalette, planProgramming } from "../lib/void.js";
 
 const USAGE = `Usage: npm run plan -- <color> <color> <color> [--start N] [--carry-over]
 

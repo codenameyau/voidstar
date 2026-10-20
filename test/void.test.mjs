@@ -11,7 +11,7 @@ import {
   colorAt,
   modeTimeline,
   MODES,
-} from "../public/lib/void.js";
+} from "../lib/void.js";
 
 test("chart has 34 colors, #1 is blank", () => {
   assert.equal(COLOR_COUNT, 34);

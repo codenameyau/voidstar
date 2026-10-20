@@ -1,16 +1,12 @@
 # Voidstar Programmer
 
-Plan, preview, and program a Trippy Squid Void LED microlight from a web page.
+Plan three colors and a flash mode, preview them on a spinning flowstar, then follow the button presses on the light.
 
-## What the light can and can't do
+The page cannot program the light. The Void's USB-C cable only charges, so a computer never sees the light as a device. You press the light's one button. The guide counts the presses and plays a beep for each one.
 
-The Void has no USB data connection. Its cable only charges the light, so a
-computer cannot read from or write to it. Plugged into a Mac, nothing shows up
-on the USB bus or as a serial port. The only way to program it is the single
-button, so this tool turns the button sequence into exact steps with audio cues.
+## What the button does
 
-The button interface, from the [official manual](https://trippysquid.com/pages/led-flowstar)
-(copies are in `manual/`):
+From the [official manual](https://trippysquid.com/pages/led-flowstar). Copies of the booklet pages are in `instructions/`.
 
 | Action | Button |
 | --- | --- |
@@ -23,36 +19,31 @@ The button interface, from the [official manual](https://trippysquid.com/pages/l
 | Lock mode (from off) | Hold 3 s, release on green; exit with 3 fast clicks |
 | Factory reset (from off) | Hold 5 s, release on red |
 
-Programming saves three colors in order. All 9 flash modes then use them.
+Programming saves three colors in order. The guide then clicks from mode 1 to the mode you picked. All 9 modes use those colors. A flowstar holds 8 lights. Program one light at a time, or give all 8 the same program.
 
 ## Run it
 
-Needs Node 18 or newer. No install step.
+The site is the files in this folder. Publish the repository root with GitHub Pages (branch `master`, folder `/`) and it is served at https://codenameyau.github.io/voidstar/.
 
-```sh
-npm start
-```
+Choose colors and a mode, then click **Start guided programming**. Hands-free plays each cue; confirm on screen before the next step. The last beep of a color or a mode means stop.
 
-Open http://localhost:8734. Pick three colors, preview a mode, then click
-**Start guided programming** and press the light's button on each beep.
+To preview on your machine, serve this folder with any static file server and open `index.html`. Script modules do not load from a `file://` address.
 
-Your palette is kept in the page URL (`#p=16-27-34`), so you can bookmark or share it.
+The terminal planner needs Node 18 or newer. No install step.
 
-From the terminal, print the steps without the UI:
+Choices stay in the browser. **Export** and **Import** read and write `voidstar-lights.json`. The active palette is also in the page URL (`#p=16-27-34`).
+
+Print the color steps in the terminal:
 
 ```sh
 npm run plan -- 16 27 34
 ```
 
-## Calibration
+That count assumes program mode starts on color 1, and each color starts over from color 1. `--start N` and `--carry-over` change those two assumptions.
 
-The manual doesn't say which color shows first in program mode, or whether
-each color slot restarts at #1. The defaults assume #1 and a restart. If a
-count lands on the wrong color, click **Wrong color?** in the guide and pick
-what the light shows. It recounts from there, and the start color is
-remembered. You can also change both under **Calibration**.
+## Preview
 
-The Flowstar preview spins one of the Void Glowstar prints (8 or 16 lights), lit only by the LEDs the way it looks in the dark. Preview timings and screen colors are estimates from the manual's charts.
+Three Void Glowstar designs. **Flip** shows the other side. **LEDs** on is a dark room with a light in each tip. **LEDs** off is the full-color print. Flash timings are measured from the manual's chart. Screen colors are sampled from the color chart, not from the LED itself.
 
 ## Tests
 
