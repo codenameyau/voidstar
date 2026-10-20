@@ -9,7 +9,6 @@ import {
   encodePalette,
   modeTimeline,
   planProgramming,
-  pressesBetween,
 } from "./lib/void.js";
 
 const STORAGE_KEY = "voidstar-programmer:v1";
@@ -60,7 +59,7 @@ function loadState() {
     mode: 1,
     star: "moon-vortex",
     face: "front",
-    settings: { startColor: BLANK, carryOver: false, tempo: 2, sound: true },
+    settings: { startColor: BLANK, carryOver: false, tempo: 2, sound: true, handsFree: true },
   };
   let stored = {};
   try {
@@ -264,18 +263,20 @@ function renderPalette() {
   lightButtons.forEach((button, i) => button.setAttribute("aria-pressed", String(i === state.selectedLight)));
 }
 
+function selectLight(i) {
+  if (state.programAll || i === state.selectedLight) return;
+  state.lights[state.selectedLight] = { palette: [...state.palette], mode: state.mode };
+  state.selectedLight = i;
+  state.palette = [...state.lights[i].palette];
+  state.mode = state.lights[i].mode;
+  persist();
+  rebuildTimeline();
+  render();
+}
+
 const lightButtons = Array.from({ length: LIGHT_COUNT }, (_, i) => {
   const button = el("button", { type: "button", textContent: String(i + 1), ariaLabel: `Light ${i + 1}` });
-  button.addEventListener("click", () => {
-    if (state.programAll || i === state.selectedLight) return;
-    state.lights[state.selectedLight] = { palette: [...state.palette], mode: state.mode };
-    state.selectedLight = i;
-    state.palette = [...state.lights[i].palette];
-    state.mode = state.lights[i].mode;
-    persist();
-    rebuildTimeline();
-    render();
-  });
+  button.addEventListener("click", () => selectLight(i));
   $("lights").append(button);
   return button;
 });
@@ -339,10 +340,10 @@ function resizeCanvas() {
 new ResizeObserver(resizeCanvas).observe(canvas);
 
 const TAU = 2 * Math.PI;
-const FLOWSTAR_SPIN_MS = 640;
-// A hand-spun flowstar runs about 1 to 3.5 turns per second.
-const SPIN_VERY_FAST_MS = 300;
-const SPIN_VERY_SLOW_MS = 1000;
+const FLOWSTAR_SPIN_MS = 800;
+// A hand-spun flowstar runs about 0.9 to 2.5 turns per second.
+const SPIN_VERY_FAST_MS = 400;
+const SPIN_VERY_SLOW_MS = 1100;
 const SPIN_VARY_CYCLE_MS = 16000;
 let spinAngle = 0;
 let spinTime = 0;
@@ -385,7 +386,7 @@ function flowstarPose(t, w, h) {
     cx: w / 2,
     cy: h / 2,
     spin: spinAt(t),
-    reach: h * 0.4,
+    reach: Math.min(w, h) * 0.4,
   };
 }
 
@@ -870,7 +871,7 @@ function currentPlan() {
 function renderSummary() {
   const selects = currentPlan().filter((s) => s.type === "select");
   const total = selects.reduce((n, s) => n + s.presses, 0);
-  const seconds = total / state.settings.tempo + (LEAD_IN_BEATS * 3) / state.settings.tempo + 30;
+  const seconds = (total * COACH_PRESS_MS) / 1000 + (LEAD_IN_BEATS * 3 * COACH_PRESS_MS) / 1000 + 30;
   const who = state.programAll ? "All 8 lights share this program" : `Light ${state.selectedLight + 1}`;
   $("plan-summary").replaceChildren(
     el("strong", { textContent: `${who}: ${total} presses total` }),
@@ -881,10 +882,10 @@ function renderSummary() {
 // ---------- Audio cues ----------
 
 let audio;
-function tone(freq, ms) {
+function tone(freq, ms, delay = 0) {
   if (!state.settings.sound) return;
   audio ??= new AudioContext();
-  const start = audio.currentTime;
+  const start = audio.currentTime + delay;
   const end = start + ms / 1000;
   const osc = audio.createOscillator();
   const gain = audio.createGain();
@@ -898,14 +899,22 @@ function tone(freq, ms) {
   osc.stop(end + 0.02);
 }
 
+function stopChime() {
+  tone(1175, 70);
+  tone(494, 220, 0.09);
+}
+
 // ---------- Coach ----------
 
+const AUTO_CUE_DELAY_MS = 800;
+const COACH_PRESS_MS = 1000;
 const dialog = $("coach");
-const coach = { steps: [], index: 0, timers: [] };
+const coach = { steps: [], index: 0, round: 1, done: new Set(), timers: [] };
 
 function stopCue() {
   coach.timers.forEach(clearTimeout);
   coach.timers = [];
+  if (coach.nextLabel) $("coach-next").textContent = coach.nextLabel;
 }
 
 function schedule(ms, fn) {
@@ -932,16 +941,16 @@ function leadIn(interval, then) {
 
 function playPressCue(step) {
   stopCue();
-  const interval = 1000 / state.settings.tempo;
-  leadIn(interval, () => {
+  leadIn(COACH_PRESS_MS, () => {
     for (let k = 1; k <= step.presses; k++) {
-      schedule((k - 1) * interval, () => {
-        tone(k % 5 === 0 ? 1320 : 880, 60);
+      schedule((k - 1) * COACH_PRESS_MS, () => {
+        if (k === step.presses) stopChime();
+        else tone(k % 5 === 0 ? 1320 : 880, 60);
         setBig([String(k), el("span", { className: "of", textContent: ` / ${step.presses}` })], "pulse");
       });
     }
-    schedule(step.presses * interval, () => {
-      $("coach-detail").textContent = `Check that the light shows ${colorName(step.to)}, then continue.`;
+    schedule(step.presses * COACH_PRESS_MS, () => {
+      $("coach-detail").textContent = step.doneDetail ?? `Check that the light shows ${colorName(step.to)}.`;
       $("coach-next").focus();
     });
   });
@@ -967,24 +976,62 @@ function playHoldCue(ms) {
   });
 }
 
+function advanceCoach() {
+  if (coach.index === coach.steps.length - 1) {
+    COACH_VIEWS.done().finish();
+    return;
+  }
+  coach.index += 1;
+  renderCoach();
+}
+
 function openCoach() {
-  coach.steps = [{ type: "prep" }, ...currentPlan()];
-  coach.index = 0;
+  coach.round = 1;
+  coach.done = new Set();
+  restartCoach();
   dialog.showModal();
   renderCoach();
 }
 
-function replanFrom(index) {
-  const fresh = [{ type: "prep" }, ...currentPlan()];
-  coach.steps = [...coach.steps.slice(0, index + 1), ...fresh.slice(index + 1)];
+function restartCoach() {
+  const steps = [{ type: "prep" }, ...currentPlan()];
+  const done = steps.pop();
+  steps.push({
+    type: "mode",
+    mode: state.mode,
+    presses: Math.max(0, state.mode - 1),
+    doneDetail: `Check that the light shows ${modeName(state.mode)}.`,
+  });
+  steps.push(done);
+  coach.steps = steps;
+  coach.index = 0;
+}
+
+function jumpToLight(index) {
+  if (state.programAll) {
+    if (coach.round === index + 1) return;
+    coach.round = index + 1;
+  } else if (index !== state.selectedLight) {
+    selectLight(index);
+  } else return;
+  restartCoach();
+  renderCoach();
+}
+
+function lightNumber() {
+  return state.programAll ? coach.round : state.selectedLight + 1;
+}
+
+function hasNextLight() {
+  return state.programAll ? coach.round < LIGHT_COUNT : state.selectedLight < LIGHT_COUNT - 1;
 }
 
 const COACH_VIEWS = {
   prep: () => ({
-    title: "Start with the light off",
+    title: `Pick up light ${lightNumber()} and turn it off`,
     detail: state.programAll
-      ? "All 8 lights share this program. If one is on, hold its button for 1 second until it turns off."
-      : "If it's on, hold the button for 1 second until it turns off.",
+      ? "All 8 lights get this program, one at a time. If this one is on, hold its button for 1 second until it turns off."
+      : "If it's on, hold its button for 1 second until it turns off.",
     next: "Light is off",
   }),
   enter: (step) => ({
@@ -993,9 +1040,8 @@ const COACH_VIEWS = {
     detail: "Release when the white LED blinks once. Don't hold past 3 seconds: that turns on Lock Mode instead.",
     expect: state.settings.startColor,
     expectLabel: "Then it shows",
-    cue: ["Play 2-second cue", () => playHoldCue(step.ms)],
+    cue: [null, () => playHoldCue(step.ms)],
     next: "White LED blinked",
-    canFix: true,
   }),
   select: (step) => ({
     title: step.presses ? `Press the button ${step.presses} times` : "No presses needed",
@@ -1007,7 +1053,6 @@ const COACH_VIEWS = {
     expectLabel: "Your light should show",
     cue: step.presses ? ["Start press cue", () => playPressCue(step)] : null,
     next: `It shows ${colorName(step.to)}`,
-    canFix: true,
   }),
   save: (step) => ({
     title: `Hold for 1 second to save Color ${step.slot + 1}`,
@@ -1016,12 +1061,36 @@ const COACH_VIEWS = {
     cue: ["Play 1-second cue", () => playHoldCue(step.ms)],
     next: "Saved",
   }),
-  done: () => ({
-    title: "Your palette is saved",
-    big: "✓",
-    detail: "Click the button to cycle through the 9 modes. These colors stay until you reprogram or factory reset.",
-    next: "Finish",
+  mode: (step) => ({
+    title: step.presses ? `Press ${step.presses} times to reach ${modeName(step.mode)}` : `Leave it on ${modeName(step.mode)}`,
+    big: step.presses ? ["0", el("span", { className: "of", textContent: ` / ${step.presses}` })] : modeName(step.mode),
+    detail: step.presses
+      ? "After the colors are saved, the light is on mode 1. Click once on each beep. The last sound means stop."
+      : "After the colors are saved, the light is already on Fast Strobe.",
+    cue: step.presses ? ["Start press cue", () => playPressCue(step)] : null,
+    next: `It shows ${modeName(step.mode)}`,
   }),
+  done: () => {
+    const more = hasNextLight();
+    const n = lightNumber();
+    return {
+      title: `Light ${n} is programmed`,
+      big: "✓",
+      detail: "Colors and mode stay on this light until you reprogram or factory reset.",
+      next: more ? `Program light ${n + 1}` : "Finish",
+      finish() {
+        coach.done.add(n);
+        if (!more) {
+          dialog.close();
+          return;
+        }
+        if (state.programAll) coach.round += 1;
+        else selectLight(state.selectedLight + 1);
+        restartCoach();
+        renderCoach();
+      },
+    };
+  },
 };
 
 function renderCoach() {
@@ -1040,6 +1109,13 @@ function renderCoach() {
       chip.classList.toggle("saved", saved);
       return chip;
     }),
+    (() => {
+      const chip = el("span", { className: "s", textContent: modeName(state.mode) });
+      const modeAt = coach.steps.findIndex((s) => s.type === "mode");
+      chip.classList.toggle("active", step.type === "mode");
+      chip.classList.toggle("saved", modeAt >= 0 && modeAt < coach.index);
+      return chip;
+    })(),
   );
   $("coach-title").textContent = view.title;
   setBig(view.big ?? "");
@@ -1051,48 +1127,45 @@ function renderCoach() {
   );
   if (view.expect === BLANK) $("coach-expect").append(" (LED off)");
 
-  $("coach-fix").hidden = true;
-  $("coach-wrong").hidden = !view.canFix;
   $("coach-back").disabled = coach.index === 0;
+  coach.nextLabel = view.next;
   $("coach-next").textContent = view.next;
   const cue = $("coach-cue");
-  cue.hidden = !view.cue;
-  if (view.cue) {
-    cue.textContent = view.cue[0];
+  const cueLabel = view.cue?.[0];
+  cue.hidden = !cueLabel;
+  if (cueLabel) {
+    cue.textContent = cueLabel;
     cue.onclick = view.cue[1];
   }
-  (view.cue ? cue : $("coach-next")).focus();
+  $("coach-auto").checked = state.settings.handsFree;
+  (cueLabel && !state.settings.handsFree ? cue : $("coach-next")).focus();
+
+  coachLightButtons.forEach((button, i) => {
+    const current = i + 1 === lightNumber();
+    button.setAttribute("aria-pressed", String(current));
+    button.classList.toggle("done", coach.done.has(i + 1) && !current);
+  });
+
+  if (!state.settings.handsFree || !view.cue) return;
+  schedule(AUTO_CUE_DELAY_MS, view.cue[1]);
 }
 
-buildChart($("fix-chart"), (observed) => {
-  const step = coach.steps[coach.index];
-  if (step.type !== "enter" && step.type !== "select") return;
-  if (step.type === "enter") {
-    state.settings = { ...state.settings, startColor: observed };
-    persist();
-    render();
-    replanFrom(coach.index);
-  } else {
-    coach.steps[coach.index] = { ...step, from: observed, presses: pressesBetween(observed, step.to) };
-  }
-  renderCoach();
-});
-
-$("coach-wrong").addEventListener("click", () => {
-  stopCue();
-  $("coach-fix").hidden = !$("coach-fix").hidden;
-});
 $("coach-back").addEventListener("click", () => {
   coach.index = Math.max(0, coach.index - 1);
   renderCoach();
 });
-$("coach-next").addEventListener("click", () => {
-  if (coach.index === coach.steps.length - 1) {
-    dialog.close();
-    return;
-  }
-  coach.index += 1;
+$("coach-next").addEventListener("click", advanceCoach);
+$("coach-auto").addEventListener("change", (event) => {
+  state.settings = { ...state.settings, handsFree: event.target.checked };
+  persist();
   renderCoach();
+});
+
+const coachLightButtons = Array.from({ length: LIGHT_COUNT }, (_, i) => {
+  const button = el("button", { type: "button", textContent: String(i + 1), ariaLabel: `Light ${i + 1}` });
+  button.addEventListener("click", () => jumpToLight(i));
+  $("coach-lights").append(button);
+  return button;
 });
 dialog.addEventListener("close", () => {
   if (!dialog.open) stopCue();
@@ -1154,7 +1227,13 @@ function parseProgram(data) {
     varySpin: data.varySpin,
     ledsOn: data.ledsOn,
     programAll: data.programAll === true,
-    settings: { startColor, carryOver: settings.carryOver, tempo, sound: settings.sound },
+    settings: {
+      startColor,
+      carryOver: settings.carryOver,
+      tempo,
+      sound: settings.sound,
+      handsFree: settings.handsFree !== false,
+    },
   };
 }
 

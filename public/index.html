@@ -111,17 +111,13 @@
     <p class="coach-detail" id="coach-detail"></p>
     <div class="coach-expect" id="coach-expect"></div>
 
-    <div class="coach-fix" id="coach-fix" hidden>
-      <p>Which color is your light showing now?</p>
-      <div class="chart chart-small" id="fix-chart"></div>
-    </div>
-
     <div class="coach-actions">
       <button type="button" id="coach-back">Back</button>
-      <button type="button" id="coach-wrong" class="quiet">Wrong color?</button>
+      <label class="coach-auto"><input type="checkbox" id="coach-auto"> Hands-free</label>
       <button type="button" id="coach-cue"></button>
       <button type="button" id="coach-next" class="primary">Next</button>
     </div>
+    <div class="coach-lights" id="coach-lights" role="group" aria-label="Lights"></div>
   </dialog>
 
   <dialog id="idea-dialog" aria-labelledby="idea-title">
