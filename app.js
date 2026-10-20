@@ -203,8 +203,10 @@ function buildChart(container, onPick) {
 }
 
 const chartButtons = buildChart($("chart"), (id) => {
-  state.palette = state.palette.with(state.activeSlot, id);
-  paletteChanged({ slot: state.activeSlot });
+  const slot = state.activeSlot;
+  state.palette = state.palette.with(slot, id);
+  state.activeSlot = (slot + 1) % 3;
+  paletteChanged({ slot });
 });
 
 function mirrorProgram({ palette = false, mode = false, slot = null } = {}) {
