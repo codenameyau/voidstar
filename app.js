@@ -207,6 +207,7 @@ const chartButtons = buildChart($("chart"), (id) => {
   state.palette = state.palette.with(slot, id);
   state.activeSlot = (slot + 1) % 3;
   paletteChanged({ slot });
+  if (slot === 2) selectLight((state.selectedLight + 1) % LIGHT_COUNT);
 });
 
 function mirrorProgram({ palette = false, mode = false, slot = null } = {}) {

@@ -82,7 +82,6 @@ h1, h2, h3, p { margin: 0; }
     grid-template-columns: 1fr;
     grid-template-areas: "pick" "preview" "program" "trouble" "guide";
   }
-  .guide { grid-template-columns: 1fr; }
 }
 
 .card {
@@ -258,6 +257,9 @@ details[open] summary { margin-bottom: 10px; }
 .guide { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 .guide figure { margin: 0; display: grid; gap: 8px; }
 .guide img { width: 100%; height: auto; border-radius: 10px; background: #000; }
+@media (max-width: 860px) {
+  .guide { grid-template-columns: 1fr; }
+}
 
 dialog {
   width: min(600px, calc(100vw - 32px));
