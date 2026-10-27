@@ -156,6 +156,105 @@ function persist() {
   history.replaceState(null, "", `#p=${encodePalette(palette)}`);
 }
 
+const SETTINGS_HISTORY_LIMIT = 50;
+const settingsHistory = { past: [], future: [] };
+let isEditingSettings = false;
+
+function copySettings() {
+  return {
+    lights: state.lights.map((light) => ({ palette: [...light.palette], mode: light.mode })),
+    selectedLight: state.selectedLight,
+    allProgram: state.allProgram
+      ? { palette: [...state.allProgram.palette], mode: state.allProgram.mode }
+      : null,
+    palette: [...state.palette],
+    mode: state.mode,
+    programAll: state.programAll,
+    applyAll: state.applyAll,
+    activeSlot: state.activeSlot,
+    savedIdeas: state.savedIdeas.map((idea) => ({ name: idea.name, palette: [...idea.palette], mode: idea.mode })),
+  };
+}
+
+function sameSettings(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function editSettings(change) {
+  if (isEditingSettings) {
+    change();
+    return;
+  }
+  const before = copySettings();
+  isEditingSettings = true;
+  try {
+    change();
+  } finally {
+    isEditingSettings = false;
+  }
+  if (sameSettings(before, copySettings())) return;
+  settingsHistory.past.push(before);
+  if (settingsHistory.past.length > SETTINGS_HISTORY_LIMIT) settingsHistory.past.shift();
+  settingsHistory.future = [];
+  renderHistory();
+}
+
+function restoreSettings(snapshot) {
+  state.lights = snapshot.lights.map((light) => ({ palette: [...light.palette], mode: light.mode }));
+  state.selectedLight = snapshot.selectedLight;
+  state.allProgram = snapshot.allProgram
+    ? { palette: [...snapshot.allProgram.palette], mode: snapshot.allProgram.mode }
+    : null;
+  state.palette = [...snapshot.palette];
+  state.mode = snapshot.mode;
+  state.programAll = snapshot.programAll;
+  state.applyAll = snapshot.applyAll;
+  state.activeSlot = snapshot.activeSlot;
+  state.savedIdeas = snapshot.savedIdeas.map((idea) => ({ name: idea.name, palette: [...idea.palette], mode: idea.mode }));
+  persist();
+  rebuildTimeline();
+  render();
+}
+
+function undo() {
+  const snapshot = settingsHistory.past.pop();
+  if (!snapshot) return;
+  settingsHistory.future.push(copySettings());
+  restoreSettings(snapshot);
+}
+
+function redo() {
+  const snapshot = settingsHistory.future.pop();
+  if (!snapshot) return;
+  settingsHistory.past.push(copySettings());
+  restoreSettings(snapshot);
+}
+
+function renderHistory() {
+  $("undo").disabled = settingsHistory.past.length === 0;
+  $("redo").disabled = settingsHistory.future.length === 0;
+}
+
+$("undo").addEventListener("click", undo);
+$("redo").addEventListener("click", redo);
+document.addEventListener("keydown", (event) => {
+  const target = event.target;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
+  if (target instanceof HTMLElement && target.isContentEditable) return;
+  if ($("coach").open || $("idea-dialog").open) return;
+  const meta = event.metaKey || event.ctrlKey;
+  if (!meta || event.altKey) return;
+  const key = event.key.toLowerCase();
+  if (key === "z") {
+    event.preventDefault();
+    if (event.shiftKey) redo();
+    else undo();
+  } else if (key === "y") {
+    event.preventDefault();
+    redo();
+  }
+});
+
 function el(tag, props = {}, children = []) {
   const node = Object.assign(document.createElement(tag), props);
   node.append(...children);
@@ -203,11 +302,13 @@ function buildChart(container, onPick) {
 }
 
 const chartButtons = buildChart($("chart"), (id) => {
-  const slot = state.activeSlot;
-  state.palette = state.palette.with(slot, id);
-  state.activeSlot = (slot + 1) % 3;
-  paletteChanged({ slot });
-  if (slot === 2) selectLight((state.selectedLight + 1) % LIGHT_COUNT);
+  editSettings(() => {
+    const slot = state.activeSlot;
+    state.palette = state.palette.with(slot, id);
+    state.activeSlot = (slot + 1) % 3;
+    paletteChanged({ slot });
+    if (slot === 2) selectLight((state.selectedLight + 1) % LIGHT_COUNT);
+  });
 });
 
 function mirrorProgram({ palette = false, mode = false, slot = null } = {}) {
@@ -225,6 +326,36 @@ function paletteChanged(fields) {
   rebuildTimeline();
   render();
 }
+
+function randomProgram() {
+  const colorId = () => COLORS[Math.floor(Math.random() * COLORS.length)].id;
+  const mode = MODES[Math.floor(Math.random() * MODES.length)].id;
+  return { palette: [colorId(), colorId(), colorId()], mode };
+}
+
+function randomizeLights() {
+  editSettings(() => {
+    if (state.programAll) {
+      const program = randomProgram();
+      state.palette = program.palette;
+      state.mode = program.mode;
+      paletteChanged({ palette: true, mode: true });
+      return;
+    }
+    for (const light of state.lights) {
+      const program = randomProgram();
+      light.palette = program.palette;
+      light.mode = program.mode;
+    }
+    const current = state.lights[state.selectedLight];
+    state.palette = [...current.palette];
+    state.mode = current.mode;
+    persist();
+    rebuildTimeline();
+    render();
+  });
+}
+$("random-program").addEventListener("click", randomizeLights);
 
 function renderPalette() {
   slotButtons.forEach((button, slot) => {
@@ -248,8 +379,10 @@ function renderPalette() {
       ]);
       chip.setAttribute("aria-pressed", String(samePalette(palette)));
       chip.addEventListener("click", () => {
-        state.palette = palette;
-        paletteChanged({ palette: true });
+        editSettings(() => {
+          state.palette = palette;
+          paletteChanged({ palette: true });
+        });
       });
       return chip;
     }),
@@ -266,9 +399,11 @@ function renderPalette() {
       ]);
       chip.setAttribute("aria-pressed", String(samePalette(palette) && mode === state.mode));
       chip.addEventListener("click", () => {
-        state.palette = [...palette];
-        state.mode = mode;
-        paletteChanged({ palette: true, mode: true });
+        editSettings(() => {
+          state.palette = [...palette];
+          state.mode = mode;
+          paletteChanged({ palette: true, mode: true });
+        });
       });
       return chip;
     }),
@@ -289,25 +424,27 @@ function selectLight(i) {
 
 const lightButtons = Array.from({ length: LIGHT_COUNT }, (_, i) => {
   const button = el("button", { type: "button", textContent: String(i + 1), ariaLabel: `Light ${i + 1}` });
-  button.addEventListener("click", () => selectLight(i));
+  button.addEventListener("click", () => editSettings(() => selectLight(i)));
   $("lights").append(button);
   return button;
 });
 
 function setProgramAll(programAll) {
-  if (state.programAll === programAll) return;
-  syncActiveProgram();
-  state.programAll = programAll;
-  if (programAll && !state.allProgram) {
-    const source = state.lights[state.selectedLight];
-    state.allProgram = { palette: [...source.palette], mode: source.mode };
-  }
-  const active = programAll ? state.allProgram : state.lights[state.selectedLight];
-  state.palette = [...active.palette];
-  state.mode = active.mode;
-  persist();
-  rebuildTimeline();
-  render();
+  editSettings(() => {
+    if (state.programAll === programAll) return;
+    syncActiveProgram();
+    state.programAll = programAll;
+    if (programAll && !state.allProgram) {
+      const source = state.lights[state.selectedLight];
+      state.allProgram = { palette: [...source.palette], mode: source.mode };
+    }
+    const active = programAll ? state.allProgram : state.lights[state.selectedLight];
+    state.palette = [...active.palette];
+    state.mode = active.mode;
+    persist();
+    rebuildTimeline();
+    render();
+  });
 }
 $("program-all").addEventListener("click", () => setProgramAll(true));
 $("program-individual").addEventListener("click", () => setProgramAll(false));
@@ -320,8 +457,10 @@ function renderProgramScope() {
   $("apply-all-label").hidden = state.programAll;
 }
 $("apply-all").addEventListener("change", () => {
-  state.applyAll = $("apply-all").checked;
-  persist();
+  editSettings(() => {
+    state.applyAll = $("apply-all").checked;
+    persist();
+  });
 });
 
 // ---------- Preview ----------
@@ -857,20 +996,24 @@ $("idea-form").addEventListener("submit", (event) => {
     $("idea-name").reportValidity();
     return;
   }
-  state.savedIdeas = [...state.savedIdeas, idea];
-  persist();
-  render();
+  editSettings(() => {
+    state.savedIdeas = [...state.savedIdeas, idea];
+    persist();
+    render();
+  });
   ideaDialog.close();
 });
 
 const modeButtons = MODES.map(({ id, name }) => {
   const button = el("button", { type: "button" }, [el("span", { className: "n", textContent: `${id}` }), name]);
   button.addEventListener("click", () => {
-    state.mode = id;
-    mirrorProgram({ mode: true });
-    persist();
-    rebuildTimeline();
-    render();
+    editSettings(() => {
+      state.mode = id;
+      mirrorProgram({ mode: true });
+      persist();
+      rebuildTimeline();
+      render();
+    });
   });
   $("modes").append(button);
   return button;
@@ -1305,7 +1448,7 @@ $("import-file").addEventListener("change", async () => {
       showImportError("That file isn't a saved light program.");
       return;
     }
-    applyProgram(program);
+    editSettings(() => applyProgram(program));
     showImportError("");
   } catch {
     showImportError("That file isn't a saved light program.");
@@ -1322,6 +1465,7 @@ function render() {
   renderStars();
   renderSummary();
   renderProgramScope();
+  renderHistory();
 }
 
 rebuildTimeline();

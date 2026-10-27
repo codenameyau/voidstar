@@ -22,14 +22,23 @@
 
   <main class="layout">
     <section class="card area-pick" aria-labelledby="choose-title">
-      <h2 id="choose-title"><span class="step-num">1</span> Choose your settings</h2>
+      <div class="heading-row">
+        <h2 id="choose-title"><span class="step-num">1</span> Choose your settings</h2>
+        <div class="history-actions">
+          <button type="button" id="undo" disabled>Undo</button>
+          <button type="button" id="redo" disabled>Redo</button>
+        </div>
+      </div>
       <div class="slots" id="slots" role="group" aria-label="Palette slot to edit"></div>
       <div class="chart" id="chart" aria-label="Color chart"></div>
 
       <div>
         <div class="heading-row">
           <h3>Ideas</h3>
-          <button type="button" id="save-idea">Save idea</button>
+          <div class="idea-actions">
+            <button type="button" id="random-program">Random</button>
+            <button type="button" id="save-idea">Save idea</button>
+          </div>
         </div>
         <div class="chips" id="presets"></div>
       </div>

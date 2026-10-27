@@ -171,7 +171,12 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .light-pager { margin-top: auto; }
 .heading-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .heading-row h3 { margin-bottom: 0; }
-.heading-row > button { padding: 4px 10px; font-size: 13px; }
+.heading-row > button,
+.idea-actions button { padding: 4px 10px; font-size: 13px; }
+.idea-actions { display: flex; gap: 6px; flex: none; }
+.card > .heading-row { margin-bottom: 0; flex-wrap: wrap; }
+.history-actions { display: flex; gap: 6px; flex: none; }
+.history-actions button { padding: 4px 10px; font-size: 13px; }
 .segment { display: flex; gap: 6px; align-items: center; }
 .segment button { padding: 4px 10px; font-size: 13px; }
 .segment button[aria-pressed="true"] { border-color: var(--green); color: var(--green); }
